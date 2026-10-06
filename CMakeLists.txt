@@ -60,6 +60,37 @@ else()
 	target_compile_options( atomscript_writer PRIVATE -Wall -Wextra )
 endif()
 
+# コンパイラ（.ats → .atsb）。CLI・Unity・UE・エディタが同じ実装を使う
+add_library( atomscript_compiler STATIC
+	tools/compiler/ats_diag.h
+	tools/compiler/ats_diag.cpp
+	tools/compiler/ats_yaml.h
+	tools/compiler/ats_yaml.cpp
+	tools/compiler/ats_manifest.h
+	tools/compiler/ats_manifest.cpp
+	tools/compiler/ats_lexer.h
+	tools/compiler/ats_lexer.cpp
+	tools/compiler/ats_ast.h
+	tools/compiler/ats_parser.h
+	tools/compiler/ats_parser.cpp
+	tools/compiler/ats_compiler.h
+	tools/compiler/ats_compiler.cpp
+	tools/compiler/ats_disasm.cpp
+)
+target_include_directories( atomscript_compiler PUBLIC tools/compiler )
+target_link_libraries( atomscript_compiler PUBLIC atomscript_writer )
+if( MSVC )
+	target_compile_options( atomscript_compiler PRIVATE /W4 /utf-8 /EHsc )
+else()
+	target_compile_options( atomscript_compiler PRIVATE -Wall -Wextra )
+endif()
+
+add_executable( atsc tools/compiler/atsc_main.cpp )
+target_link_libraries( atsc PRIVATE atomscript_compiler )
+if( MSVC )
+	target_compile_options( atsc PRIVATE /W4 /utf-8 /EHsc )
+endif()
+
 if( ATS_BUILD_TESTS )
 	enable_testing()
 	add_executable( atomscript_tests
@@ -69,8 +100,10 @@ if( ATS_BUILD_TESTS )
 		tests/test_commands.cpp
 		tests/test_fibers.cpp
 		tests/test_vars.cpp
+		tests/test_compiler.cpp
 	)
-	target_link_libraries( atomscript_tests PRIVATE atomscript_static atomscript_writer )
+	target_link_libraries( atomscript_tests PRIVATE atomscript_static atomscript_writer atomscript_compiler )
+	target_compile_definitions( atomscript_tests PRIVATE ATS_SAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/samples" )
 	if( MSVC )
 		target_compile_options( atomscript_tests PRIVATE /W4 /utf-8 /EHsc )
 	else()

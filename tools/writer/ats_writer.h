@@ -45,6 +45,8 @@ public:
 	uint16_t	BeginEvent( const std::string& name, const std::vector<ats_type>& params, uint16_t localc );
 	void		BeginFunction( uint16_t fn );
 	void		EndEntry();
+	// ローカル数は本体を生成した後で確定する（コンパイラ用）
+	void		SetLocalCount( uint16_t entry, uint16_t localc ) { m_entries[entry].e.localc = localc; }
 
 	// 命令 -------------------------------------------------------------------
 	void		Op( fmt::Op op );

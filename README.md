@@ -9,8 +9,8 @@ LT（DS）のスクリプトマネージャを参考に新規設計したもの�
 | --- | --- |
 | コア VM・C API | 実装済み（本リポジトリ） |
 | バイナリ形式 `.atsb` | v1.0（[docs/bytecode.md](docs/bytecode.md)） |
-| 書き出しライブラリ（`tools/writer`） | 実装済み。テストと今後のコンパイラが使う |
-| コンパイラ `atsc`（`.ats` → `.atsb`） | 未着手 |
+| 書き出しライブラリ（`tools/writer`） | 実装済み |
+| コンパイラ `atsc`（`.ats` → `.atsb`） | 実装済み（[docs/language.md](docs/language.md)）。`fmt` / `gen` / `strings` / `refs` は未実装 |
 | Unity / UE 統合、VS Code 拡張、デバッガ | 未着手 |
 
 ## ディレクトリ
@@ -20,8 +20,11 @@ include/atomscript/ats_api.h     C API（エンジン・ゲームが使う唯一
 include/atomscript/ats_format.h  .atsb の定義（VM とコンパイラで共有）
 src/                             コア VM（例外・RTTI・STL を使わない）
 tools/writer/                    .atsb の書き出し（ツール側。STL 可）
+tools/compiler/                  コンパイラ（マニフェスト・字句／構文解析・意味検査・コード生成）と atsc
+samples/                         サンプルのマニフェストとスクリプト
 tests/                           テスト
 docs/spec.md                     仕様書
+docs/language.md                 言語・マニフェスト・atsc のリファレンス
 docs/bytecode.md                 バイナリ形式・命令・セーブ形式の詳細
 ```
 
@@ -46,6 +49,13 @@ build/Release/atomscript_tests.exe
 - `atomscript_static`：静的ライブラリ（iOS・家庭用機・テスト用。`ATS_STATIC` を定義して使う）
 - `atomscript`：共有ライブラリ（Windows・macOS・Android・Linux）
 - `atomscript_writer`：書き出しライブラリ
+- `atomscript_compiler`：コンパイラ本体（ライブラリ）
+- `atsc`：コンパイラ CLI
+
+```bash
+build/Release/atsc.exe compile samples/merchant.ats -m samples/sample.atsmanifest.yaml
+build/Release/atsc.exe disasm samples/merchant.atsb
+```
 
 ## 使い方（概要）
 

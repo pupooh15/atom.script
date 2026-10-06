@@ -1,0 +1,32 @@
+script "sample/merchant"            // スクリプトID（セーブデータのキー）
+
+var talked: int = 0                  // スクリプト変数（このファイル内だけ。セーブ対象）
+
+// 商人に話しかけたとき
+event OnTalk(target: handle) {
+    talked += 1
+    if (story.chapter >= 3 && !IsQuestCleared(12)) {
+        await ShowMessage("例の品は手に入ったかい？", face: Face.Smile)
+        CameraShake(power: 2.0, duration: 0.5)
+        story.met_merchant = true
+    } else {
+        await ShowMessage("また来てくれ。")
+    }
+
+    loop {
+        let answer = await SelectWindow(SelectType.YesNo)   // ローカル変数
+        if (answer == 0) { break }
+        await ShowMessage("本当に？")
+    }
+
+    parallel {
+        branch { await FadeOut(0.5) }
+        branch { await PlayBgm("bgm_shop") }
+    }
+    wait 1.5
+    GiveReward(target)
+}
+
+fn GiveReward(target: handle) {
+    scene.reward_count += 1
+}

@@ -1,0 +1,61 @@
+# サンプルのマニフェスト（仕様書 §8 の記述例）
+manifest: 1
+project: sample_rpg
+
+enums:
+  Face:
+    display: 顔絵
+    values: { Normal: 0, Smile: 1, Angry: 2 }
+  SelectType:
+    values: { YesNo: 0, Which: 1 }
+
+variable_banks:
+  story:
+    scope: persistent
+    vars:
+      - { id: 1001, name: chapter,      type: int,  bits: 8 }
+      - { id: 1002, name: met_merchant, type: bool }
+  scene:
+    scope: session
+    vars:
+      - { id: 2001, name: reward_count, type: int }
+
+events:
+  - name: OnTalk
+    params: [ { name: target, type: handle } ]
+
+commands:
+  - name: ShowMessage
+    display: メッセージ表示
+    category: メッセージ
+    latent: true
+    channel: message
+    params:
+      - { name: text, type: string, display: 本文 }
+      - { name: face, type: Face, default: Normal }
+  - name: SelectWindow
+    display: 確認ウィンドウ
+    category: メッセージ
+    latent: true
+    channel: message
+    returns: int
+    params:
+      - { name: type, type: SelectType }
+  - name: CameraShake
+    display: カメラゆらし
+    category: カメラ
+    latent: false
+    params:
+      - { name: power,    type: float, default: 1.0 }
+      - { name: duration, type: float, default: 0.5 }
+  - name: FadeOut
+    latent: true
+    params: [ { name: time, type: float } ]
+  - name: PlayBgm
+    latent: true
+    params: [ { name: name, type: string } ]
+
+queries:
+  - name: IsQuestCleared
+    returns: bool
+    params: [ { name: quest_id, type: int } ]
