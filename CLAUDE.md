@@ -73,6 +73,7 @@ CMAKE="/c/Program Files (x86)/Microsoft Visual Studio/2019/Professional/Common7/
 | --- | --- |
 | 段階1：コア VM・C API | 完了（push 済み、コミット 7135e08） |
 | 段階1：コンパイラ・CLI | 完了（push 済み） |
+| 段階1：`atsc gen`（C++ / HTML） | 完了（push 済み、テスト 52 件）。C# は Unity 統合と一緒に作る |
 | 段階2：VS Code 拡張、Unity 統合、UE 統合 | 未着手 |
 | 段階3：家庭用機・モバイル対応、ノードエディタ | 未着手 |
 
@@ -84,7 +85,9 @@ CMAKE="/c/Program Files (x86)/Microsoft Visual Studio/2019/Professional/Common7/
 
 ## 次の作業の候補
 
-- `atsc gen`：マニフェストから C# / C++ の登録コード（`ats_register_command` / `ats_define_var`、シグネチャハッシュは `MCommand::SignatureHash()` と同じ規則）を生成
+- `atsc gen --lang csharp`：Unity 用の登録コード。生成コードが使う C# ラッパーの API（Unity パッケージ側）を先に決めてから作る。
+  C++ 版（`GenerateCpp`）と同じ構成（Commands の抽象クラス、Register、enum、vars、events）にする想定
+- `gen` の改善候補：`Commands` をカテゴリごとに分割できるようにする、UE 向け（UObject / Blueprint）の生成
 - `atsc fmt` / `strings` / `refs`
 - VS Code 拡張（構文ハイライト、コンパイラを言語サーバーとして使う補完・エラー表示）
 - Unity パッケージ（Unity 6、P/Invoke、IL2CPP の MonoPInvokeCallback、`Awaitable`）

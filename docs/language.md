@@ -136,7 +136,23 @@ queries:                              # 待機しない問い合わせ。returns
 atsc compile  <file.ats>... -m <manifest> [-o <out.atsb | dir>] [--json] [--no-debug]
 atsc validate <file.ats>... -m <manifest> [--json]
 atsc disasm   <file.atsb>
+atsc gen      -m <manifest> --lang <cpp | html> [-o <file>] [--namespace <ns>]
 ```
+
+### atsc gen
+
+- `--lang cpp`：ゲーム側の登録コード（ヘッダーのみ）。名前空間は `--namespace`（省略時はマニフェストの `project`）。
+  - `class Commands`：コマンド・クエリごとの仮想関数。継承して実装する。
+    - 即時コマンド・クエリ：引数を受け取り、値を返す（`returns` がなければ void）。
+    - 待機ありコマンド：`ats_call*` と引数を受け取り、`ATS_DONE` / `ATS_PENDING` / `ATS_RUNNING` / `ATS_FAIL` を返す。
+      `ATS_PENDING` のときは `ats_call_get_token( call )` を取っておき、終わったら `ats_call_complete( ats_call_vm( call ), token, 結果 )`。
+    - `OnCancel( token )`：待機中のコマンドが中断されたとき。
+  - `Register( rt, &impl )`：共有変数（`DefineVars`）とコマンド・クエリ（`RegisterCommands`）をまとめて登録。シグネチャのハッシュはコンパイラと同じ規則で埋め込まれる。
+  - `enum class`、`MakeValue()` / `MakeHandle()`、共有変数の ID（`vars::story::chapter`）、イベントの発火（`events::FireOnTalk( vm, prog, … )` / `BroadcastOnTalk`）、`kManifestHash`。
+- `--lang html`：プランナー向けのコマンド一覧（カテゴリ別のコマンド・クエリ、イベント、共有変数、enum）。
+- C#（Unity 用）は Unity 統合と一緒に作る（生成コードが使う C# ラッパーの API を先に決めるため）。
+
+使い方の例はテスト `tests/test_gen.cpp`（ビルド時に `samples/sample.atsmanifest.yaml` から生成したヘッダーを使っている）。
 
 - エラーは `file(line,col): error: …`（VS / VS Code で飛べる形式）。`--json` で JSON 配列。
 - 複数ファイルを渡すと、スクリプトIDの重複も検査する。

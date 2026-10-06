@@ -76,6 +76,7 @@ add_library( atomscript_compiler STATIC
 	tools/compiler/ats_compiler.h
 	tools/compiler/ats_compiler.cpp
 	tools/compiler/ats_disasm.cpp
+	tools/compiler/ats_gen.cpp
 )
 target_include_directories( atomscript_compiler PUBLIC tools/compiler )
 target_link_libraries( atomscript_compiler PUBLIC atomscript_writer )
@@ -93,6 +94,17 @@ endif()
 
 if( ATS_BUILD_TESTS )
 	enable_testing()
+
+	# サンプルのマニフェストから登録コードを生成し、テストでそのまま使う（atsc gen の検証）
+	set( ATS_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated" )
+	file( MAKE_DIRECTORY "${ATS_GENERATED_DIR}" )
+	add_custom_command(
+		OUTPUT "${ATS_GENERATED_DIR}/sample_rpg.atsgen.h"
+		COMMAND atsc gen -m "${CMAKE_CURRENT_SOURCE_DIR}/samples/sample.atsmanifest.yaml" --lang cpp -o "${ATS_GENERATED_DIR}/sample_rpg.atsgen.h"
+		DEPENDS atsc "${CMAKE_CURRENT_SOURCE_DIR}/samples/sample.atsmanifest.yaml"
+		COMMENT "atsc gen: samples/sample.atsmanifest.yaml"
+	)
+
 	add_executable( atomscript_tests
 		tests/test_framework.h
 		tests/test_main.cpp
@@ -101,7 +113,10 @@ if( ATS_BUILD_TESTS )
 		tests/test_fibers.cpp
 		tests/test_vars.cpp
 		tests/test_compiler.cpp
+		tests/test_gen.cpp
+		"${ATS_GENERATED_DIR}/sample_rpg.atsgen.h"
 	)
+	target_include_directories( atomscript_tests PRIVATE "${ATS_GENERATED_DIR}" )
 	target_link_libraries( atomscript_tests PRIVATE atomscript_static atomscript_writer atomscript_compiler )
 	target_compile_definitions( atomscript_tests PRIVATE ATS_SAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/samples" )
 	if( MSVC )

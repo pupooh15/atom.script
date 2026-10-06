@@ -10,7 +10,7 @@ LT（DS）のスクリプトマネージャを参考に新規設計したもの�
 | コア VM・C API | 実装済み（本リポジトリ） |
 | バイナリ形式 `.atsb` | v1.0（[docs/bytecode.md](docs/bytecode.md)） |
 | 書き出しライブラリ（`tools/writer`） | 実装済み |
-| コンパイラ `atsc`（`.ats` → `.atsb`） | 実装済み（[docs/language.md](docs/language.md)）。`fmt` / `gen` / `strings` / `refs` は未実装 |
+| コンパイラ `atsc`（`.ats` → `.atsb`） | 実装済み（[docs/language.md](docs/language.md)）。`gen` は C++ と HTML に対応（C# は Unity 統合と一緒に作る）。`fmt` / `strings` / `refs` は未実装 |
 | Unity / UE 統合、VS Code 拡張、デバッガ | 未着手 |
 
 ## ディレクトリ

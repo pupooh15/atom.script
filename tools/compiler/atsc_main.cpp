@@ -28,6 +28,7 @@ const char* kUsage =
 	"  atsc compile  <file.ats>... -m <manifest> [-o <out.atsb | dir>] [--json] [--no-debug]\n"
 	"  atsc validate <file.ats>... -m <manifest> [--json]\n"
 	"  atsc disasm   <file.atsb>\n"
+	"  atsc gen      -m <manifest> --lang <cpp | html> [-o <file>] [--namespace <ns>]\n"
 	"  atsc --version\n";
 
 bool ReadFile( const std::string& path, std::string* out )
@@ -97,12 +98,14 @@ int main( int argc, char** argv )
 	if( cmd == "--help" || cmd == "-h" ){ std::fputs( kUsage, stdout ); return 0; }
 
 	std::vector<std::string> inputs;
-	std::string manifestPath, output;
+	std::string manifestPath, output, lang, nameSpace;
 	bool json = false, debugInfo = true;
 	for( int i = 2; i < argc; ++i ){
 		std::string a = argv[i];
 		if( (a == "-m" || a == "--manifest") && i + 1 < argc )	manifestPath = argv[++i];
 		else if( (a == "-o" || a == "--output") && i + 1 < argc )	output = argv[++i];
+		else if( a == "--lang" && i + 1 < argc )					lang = argv[++i];
+		else if( a == "--namespace" && i + 1 < argc )				nameSpace = argv[++i];
 		else if( a == "--json" )									json = true;
 		else if( a == "--no-debug" )								debugInfo = false;
 		else if( !a.empty() && a[0] == '-' ){ std::fprintf( stderr, "未知のオプション %s\n\n%s", a.c_str(), kUsage ); return 2; }
@@ -112,6 +115,24 @@ int main( int argc, char** argv )
 	if( cmd == "disasm" ){
 		if( inputs.size() != 1 ){ std::fputs( kUsage, stderr ); return 2; }
 		return Disasm( inputs[0] );
+	}
+	if( cmd == "gen" ){
+		if( manifestPath.empty() || !inputs.empty() || (lang != "cpp" && lang != "html") ){ std::fputs( kUsage, stderr ); return 2; }
+		Diagnostics diag;
+		Manifest manifest;
+		if( !manifest.Load( manifestPath, diag ) ){ Print( diag, json ); return 1; }
+		GenOptions opt;
+		opt.nameSpace = nameSpace;
+		opt.source    = FileName( manifestPath );
+		std::string text = lang == "cpp" ? GenerateCpp( manifest, opt ) : GenerateHtml( manifest, opt );
+		if( output.empty() ){
+			std::fputs( text.c_str(), stdout );
+		} else if( !WriteFile( output, std::vector<uint8_t>( text.begin(), text.end() ) ) ){
+			std::fprintf( stderr, "%s: 書き込めません\n", output.c_str() );
+			return 1;
+		}
+		if( !diag.List().empty() ) Print( diag, json );	// 警告があれば出す
+		return 0;
 	}
 	if( cmd != "compile" && cmd != "validate" ){ std::fputs( kUsage, stderr ); return 2; }
 	if( inputs.empty() || manifestPath.empty() ){ std::fputs( kUsage, stderr ); return 2; }
