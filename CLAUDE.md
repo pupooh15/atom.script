@@ -40,7 +40,9 @@ include/atomscript/ats_api.h     C API（エンジン・ゲームが使う唯一
 include/atomscript/ats_format.h  .atsb の定義（VM とコンパイラで共有）
 src/                             コア VM（例外・RTTI・STL 不使用。メモリはホストのアロケータ）
 tools/writer/                    .atsb 書き出し（STL 可）。max_stack を自動計算
-tools/compiler/                  コンパイラ：yaml → manifest → lexer → parser → compiler（意味検査＋コード生成）、disasm、atsc_main
+tools/compiler/                  コンパイラ：yaml → manifest → lexer → parser → compiler（意味検査＋コード生成）、disasm、
+                                 gen（C++ / HTML）、json と lsp（言語サーバー）、atsc_main
+editors/vscode/                  VS Code 拡張（TypeScript。解析は atsc lsp に任せ、拡張側に解析器は持たない）
 samples/                         sample.atsmanifest.yaml、merchant.ats（仕様書 §4 の例）
 tests/                           自前の簡易テスト（TEST / CHECK / REQUIRE）。Env が確保数を数えてリークを検出する
 docs/                            spec.md / language.md / bytecode.md
@@ -52,10 +54,17 @@ docs/                            spec.md / language.md / bytecode.md
 CMAKE="/c/Program Files (x86)/Microsoft Visual Studio/2019/Professional/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe"
 "$CMAKE" -S . -B build -G "Visual Studio 16 2019" -A x64
 "$CMAKE" --build build --config Debug      # Release も確認する
-./build/Debug/atomscript_tests.exe         # 現在 48 件すべて成功
+./build/Debug/atomscript_tests.exe         # 現在 58 件すべて成功
 ./build/Debug/atsc.exe compile samples/merchant.ats -m samples/sample.atsmanifest.yaml -o build/merchant.atsb
 ./build/Debug/atsc.exe disasm build/merchant.atsb
+
+# VS Code 拡張（先に Release の atsc を作る）
+cd editors/vscode && npm install && npm run compile
+npm test                                   # 実際の atsc lsp と標準入出力でやり取りする疎通テスト
+echo y | npx vsce package                  # LICENSE が無いので確認に y を渡す。先に npm run copy-atsc で bin/ に atsc を入れる
 ```
+
+- 構文ハイライトの正規表現は vscode-textmate + vscode-oniguruma で実際に字句分けして確かめた（スクラッチ領域で実施。リポジトリには入れていない）。
 
 - PATH に cmake は無い。上のフルパスを使う。コンソール出力は cp932 なので、MSVC のメッセージを読むときは `iconv -f cp932 -t utf-8`。
 - 警告ゼロを維持する（/W4）。MSVC の printf 系に日本語リテラルを渡すと C4819 が出るので、書式なしなら `fputs` を使う。
@@ -74,7 +83,8 @@ CMAKE="/c/Program Files (x86)/Microsoft Visual Studio/2019/Professional/Common7/
 | 段階1：コア VM・C API | 完了（push 済み、コミット 7135e08） |
 | 段階1：コンパイラ・CLI | 完了（push 済み） |
 | 段階1：`atsc gen`（C++ / HTML） | 完了（push 済み、テスト 52 件）。C# は Unity 統合と一緒に作る |
-| 段階2：VS Code 拡張、Unity 統合、UE 統合 | 未着手 |
+| 段階2：VS Code 拡張 | 完了（push 済み、テスト 58 件）。デバッガ（DAP）は VM 側のデバッグサーバーと一緒に作る |
+| 段階2：Unity 統合、UE 統合 | 未着手 |
 | 段階3：家庭用機・モバイル対応、ノードエディタ | 未着手 |
 
 ## ユーザーへの確認待ち
@@ -89,7 +99,7 @@ CMAKE="/c/Program Files (x86)/Microsoft Visual Studio/2019/Professional/Common7/
   C++ 版（`GenerateCpp`）と同じ構成（Commands の抽象クラス、Register、enum、vars、events）にする想定
 - `gen` の改善候補：`Commands` をカテゴリごとに分割できるようにする、UE 向け（UObject / Blueprint）の生成
 - `atsc fmt` / `strings` / `refs`
-- VS Code 拡張（構文ハイライト、コンパイラを言語サーバーとして使う補完・エラー表示）
+- VS Code 拡張の続き：デバッガ（DAP。VM 側のデバッグサーバー `ats_debug_server_start` が先に必要）、ホットリロード、Marketplace 以外での配布方法
 - Unity パッケージ（Unity 6、P/Invoke、IL2CPP の MonoPInvokeCallback、`Awaitable`）
 - UE 5.4 プラグイン（コアはソースのまま同梱）
 - 仕様書 §14 の未決事項：構造体型（ベクトルなど）をコアの型に入れるか、メッセージ本文とローカライズの扱い、家庭用機の SDK ビルド環境、共通リポジトリの配布方法、段階2の試験タイトル

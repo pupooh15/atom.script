@@ -1,0 +1,125 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "AtomScript",
+	"scopeName": "source.atomscript",
+	"patterns": [
+		{ "include": "#comments" },
+		{ "include": "#annotations" },
+		{ "include": "#declarations" },
+		{ "include": "#keywords" },
+		{ "include": "#strings" },
+		{ "include": "#numbers" },
+		{ "include": "#calls" },
+		{ "include": "#members" },
+		{ "include": "#operators" }
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{ "name": "comment.line.double-slash.atomscript", "match": "//.*$" },
+				{ "name": "comment.block.atomscript", "begin": "/\\*", "end": "\\*/" }
+			]
+		},
+		"annotations": {
+			"match": "(@)(was|node)\\b",
+			"captures": {
+				"1": { "name": "punctuation.definition.annotation.atomscript" },
+				"2": { "name": "storage.type.annotation.atomscript" }
+			}
+		},
+		"declarations": {
+			"patterns": [
+				{
+					"match": "\\b(script)\\b",
+					"name": "keyword.other.script.atomscript"
+				},
+				{
+					"match": "\\b(event|fn)\\s+([A-Za-z_\\x{80}-\\x{10FFFF}][A-Za-z0-9_\\x{80}-\\x{10FFFF}]*)",
+					"captures": {
+						"1": { "name": "storage.type.function.atomscript" },
+						"2": { "name": "entity.name.function.atomscript" }
+					}
+				},
+				{
+					"match": "\\b(transient\\s+)?(var|let)\\s+([A-Za-z_\\x{80}-\\x{10FFFF}][A-Za-z0-9_\\x{80}-\\x{10FFFF}]*)",
+					"captures": {
+						"1": { "name": "storage.modifier.atomscript" },
+						"2": { "name": "storage.type.atomscript" },
+						"3": { "name": "variable.other.declaration.atomscript" }
+					}
+				},
+				{
+					"match": "(:|->)\\s*(bool|int|float|string|handle)\\b",
+					"captures": {
+						"2": { "name": "support.type.primitive.atomscript" }
+					}
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.atomscript",
+					"match": "\\b(if|else|switch|case|default|loop|break|continue|return|parallel|race|branch|wait|frames|yield|await|fire)\\b"
+				},
+				{
+					"match": "\\b(reset)\\s+(vars)\\b",
+					"captures": {
+						"1": { "name": "keyword.control.atomscript" },
+						"2": { "name": "keyword.control.atomscript" }
+					}
+				},
+				{
+					"name": "constant.language.boolean.atomscript",
+					"match": "\\b(true|false)\\b"
+				},
+				{
+					"name": "support.type.primitive.atomscript",
+					"match": "\\b(bool|int|float|string|handle)\\b(?!\\s*\\()"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.atomscript",
+			"begin": "\"",
+			"end": "\"|$",
+			"patterns": [
+				{ "name": "constant.character.escape.atomscript", "match": "\\\\[nt\"\\\\]" }
+			]
+		},
+		"numbers": {
+			"patterns": [
+				{ "name": "constant.numeric.hex.atomscript", "match": "\\b0[xX][0-9A-Fa-f]+\\b" },
+				{ "name": "constant.numeric.atomscript", "match": "\\b\\d+(\\.\\d+)?([eE][+-]?\\d+)?\\b" }
+			]
+		},
+		"calls": {
+			"patterns": [
+				{
+					"match": "\\b(int|float|rand|min|max|abs)\\s*(?=\\()",
+					"name": "support.function.builtin.atomscript"
+				},
+				{
+					"match": "([A-Za-z_\\x{80}-\\x{10FFFF}][A-Za-z0-9_\\x{80}-\\x{10FFFF}]*)\\s*(?=\\()",
+					"name": "entity.name.function.call.atomscript"
+				}
+			]
+		},
+		"members": {
+			"match": "\\b([A-Za-z_\\x{80}-\\x{10FFFF}][A-Za-z0-9_\\x{80}-\\x{10FFFF}]*)(\\.)([A-Za-z_\\x{80}-\\x{10FFFF}][A-Za-z0-9_\\x{80}-\\x{10FFFF}]*)",
+			"captures": {
+				"1": { "name": "entity.name.type.atomscript" },
+				"3": { "name": "variable.other.property.atomscript" }
+			}
+		},
+		"operators": {
+			"patterns": [
+				{ "name": "keyword.operator.logical.atomscript", "match": "&&|\\|\\||!(?!=)" },
+				{ "name": "keyword.operator.comparison.atomscript", "match": "==|!=|<=|>=|<(?!<)|>(?!>)" },
+				{ "name": "keyword.operator.assignment.atomscript", "match": "(<<|>>|[-+*/%&|^])?=" },
+				{ "name": "keyword.operator.arithmetic.atomscript", "match": "<<|>>|[-+*/%&|^~]" },
+				{ "name": "keyword.operator.arrow.atomscript", "match": "->" }
+			]
+		}
+	}
+}

@@ -137,6 +137,7 @@ atsc compile  <file.ats>... -m <manifest> [-o <out.atsb | dir>] [--json] [--no-d
 atsc validate <file.ats>... -m <manifest> [--json]
 atsc disasm   <file.atsb>
 atsc gen      -m <manifest> --lang <cpp | html> [-o <file>] [--namespace <ns>]
+atsc lsp      （言語サーバー。VS Code 拡張が起動する）
 ```
 
 ### atsc gen

@@ -3,6 +3,7 @@
 	\brief	AtomScript コンパイラ CLI（atsc）
 ***************************************************************************/
 #include "ats_compiler.h"
+#include "ats_lsp.h"
 
 #include <cstdio>
 #include <cstring>
@@ -29,6 +30,7 @@ const char* kUsage =
 	"  atsc validate <file.ats>... -m <manifest> [--json]\n"
 	"  atsc disasm   <file.atsb>\n"
 	"  atsc gen      -m <manifest> --lang <cpp | html> [-o <file>] [--namespace <ns>]\n"
+	"  atsc lsp      （言語サーバー。標準入出力で通信する）\n"
 	"  atsc --version\n";
 
 bool ReadFile( const std::string& path, std::string* out )
@@ -96,6 +98,7 @@ int main( int argc, char** argv )
 	std::string cmd = argv[1];
 	if( cmd == "--version" ){ std::printf( "atsc %d.%d (atsb format 1.0)\n", ATS_API_VERSION_MAJOR, ATS_API_VERSION_MINOR ); return 0; }
 	if( cmd == "--help" || cmd == "-h" ){ std::fputs( kUsage, stdout ); return 0; }
+	if( cmd == "lsp" ) return RunLanguageServer();		// 言語サーバー（標準入出力。VS Code 拡張から起動する）
 
 	std::vector<std::string> inputs;
 	std::string manifestPath, output, lang, nameSpace;

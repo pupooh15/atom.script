@@ -225,6 +225,8 @@ bool Manifest::LoadImpl( const std::string& text, const std::string& file, const
 			MEnum e;
 			e.name    = kv.first;
 			e.display = kv.second.Str( "display" );
+			e.file    = file;
+			e.line    = kv.second.line;
 			const Node* values = kv.second.Get( "values" );
 			if( !values || !values->IsMap() ){ err( kv.second.line, "enum '" + kv.first + "' に values がありません" ); continue; }
 			for( const auto& v : values->map ){
@@ -284,6 +286,7 @@ bool Manifest::LoadImpl( const std::string& text, const std::string& file, const
 				mv.name  = v.Str( "name" );
 				mv.scope = sc;
 				mv.line  = v.line;
+				mv.file  = file;
 				long long id;
 				if( mv.name.empty() ){ err( v.line, "変数に name がありません" ); continue; }
 				if( !ParseInt( v.Str( "id" ), &id ) || id < 0 || id > 0xFFFFFFFFll ){ err( v.line, "変数 '" + mv.name + "' の id が不正です" ); continue; }
@@ -303,6 +306,8 @@ bool Manifest::LoadImpl( const std::string& text, const std::string& file, const
 		else for( const Node& e : ev->seq ){
 			MEvent me;
 			me.name = e.Str( "name" );
+			me.file = file;
+			me.line = e.line;
 			if( me.name.empty() ){ err( e.line, "イベントに name がありません" ); continue; }
 			if( FindEvent( me.name ) ){ err( e.line, "イベント '" + me.name + "' が重複しています" ); continue; }
 			readParams( e, &me.params );
@@ -324,6 +329,7 @@ bool Manifest::LoadImpl( const std::string& text, const std::string& file, const
 			mc.channel     = c.Str( "channel" );
 			mc.query       = query;
 			mc.line        = c.line;
+			mc.file        = file;
 			if( mc.name.empty() ){ err( c.line, "name がありません" ); continue; }
 			bool b = false;
 			if( c.Get( "latent" ) && !ParseBool( c.Str( "latent" ), &b ) ) err( c.line, "latent は true / false にしてください" );

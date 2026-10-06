@@ -52,6 +52,7 @@ struct MCommand {
 	std::string			channel;
 	std::vector<MParam>	params;
 	TypeRef				ret;
+	std::string			file;		// 定義されたマニフェストのファイル
 	int					line = 0;
 
 	uint32_t SignatureHash() const;
@@ -61,6 +62,8 @@ struct MEnum {
 	std::string									name;
 	std::string									display;
 	std::vector<std::pair<std::string, int32_t>>	values;
+	std::string									file;
+	int											line = 0;
 	bool Find( const std::string& v, int32_t* out ) const;
 };
 
@@ -71,12 +74,15 @@ struct MVar {
 	TypeRef		type;
 	uint32_t	scope = ATS_SCOPE_PERSISTENT;
 	Literal		init;
+	std::string	file;
 	int			line = 0;
 };
 
 struct MEvent {
 	std::string			name;
 	std::vector<MParam>	params;
+	std::string			file;
+	int					line = 0;
 };
 
 class Manifest {

@@ -77,6 +77,10 @@ add_library( atomscript_compiler STATIC
 	tools/compiler/ats_compiler.cpp
 	tools/compiler/ats_disasm.cpp
 	tools/compiler/ats_gen.cpp
+	tools/compiler/ats_json.h
+	tools/compiler/ats_json.cpp
+	tools/compiler/ats_lsp.h
+	tools/compiler/ats_lsp.cpp
 )
 target_include_directories( atomscript_compiler PUBLIC tools/compiler )
 target_link_libraries( atomscript_compiler PUBLIC atomscript_writer )
@@ -114,6 +118,7 @@ if( ATS_BUILD_TESTS )
 		tests/test_vars.cpp
 		tests/test_compiler.cpp
 		tests/test_gen.cpp
+		tests/test_lsp.cpp
 		"${ATS_GENERATED_DIR}/sample_rpg.atsgen.h"
 	)
 	target_include_directories( atomscript_tests PRIVATE "${ATS_GENERATED_DIR}" )

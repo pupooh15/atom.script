@@ -1,0 +1,86 @@
+{
+	"name": "atomscript",
+	"displayName": "AtomScript",
+	"description": "AtomScript（.ats）の構文ハイライト・補完・エラー表示・定義へ移動",
+	"version": "0.1.0",
+	"publisher": "pupooh15",
+	"license": "UNLICENSED",
+	"private": true,
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/pupooh15/atom.script"
+	},
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"categories": [
+		"Programming Languages",
+		"Snippets"
+	],
+	"main": "./out/extension.js",
+	"activationEvents": [],
+	"contributes": {
+		"languages": [
+			{
+				"id": "atomscript",
+				"aliases": [ "AtomScript", "ats" ],
+				"extensions": [ ".ats" ],
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "atomscript",
+				"scopeName": "source.atomscript",
+				"path": "./syntaxes/atomscript.tmLanguage.json"
+			}
+		],
+		"snippets": [
+			{
+				"language": "atomscript",
+				"path": "./snippets/atomscript.json"
+			}
+		],
+		"commands": [
+			{ "command": "atomscript.compile", "title": "このファイルをコンパイル", "category": "AtomScript" },
+			{ "command": "atomscript.showCommandList", "title": "コマンド一覧を表示", "category": "AtomScript" },
+			{ "command": "atomscript.restartServer", "title": "言語サーバーを再起動", "category": "AtomScript" }
+		],
+		"menus": {
+			"commandPalette": [
+				{ "command": "atomscript.compile", "when": "editorLangId == atomscript" }
+			]
+		},
+		"configuration": {
+			"title": "AtomScript",
+			"properties": {
+				"atomscript.compilerPath": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "コンパイラ `atsc` のパス。空なら拡張に同梱したもの、なければ PATH から探す。ワークスペースからの相対パスも可。"
+				},
+				"atomscript.manifest": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "マニフェスト（`*.atsmanifest.yaml`）のパス。空なら、スクリプトのフォルダから上へ探して最初に見つかったものを使う。ワークスペースからの相対パスも可。"
+				}
+			}
+		}
+	},
+	"scripts": {
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"copy-atsc": "node ./scripts/copy-atsc.js",
+		"test": "node ./test/smoke.js",
+		"package": "npm run compile && npm run copy-atsc && vsce package"
+	},
+	"dependencies": {
+		"vscode-languageclient": "^9.0.1"
+	},
+	"devDependencies": {
+		"@types/node": "^20.0.0",
+		"@types/vscode": "^1.85.0",
+		"@vscode/vsce": "^3.2.0",
+		"typescript": "^5.4.0"
+	}
+}
