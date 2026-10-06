@@ -145,6 +145,18 @@ fn GiveReward(target: handle) {
 - ノードの配置座標などエディタだけが使う情報は別ファイル（`.ats.layout`）に置き、`.ats` には入れない。
 - 文字列は UTF-8 でそのまま書ける。翻訳用の抽出は CLI で行う（§11）。
 
+### 文法の補足（atsc の実装で確定）
+
+- **待機**：`wait 秒数`、`wait frames フレーム数`、`yield`（次のフレームまで）。
+- **switch**：`case 値 { … }` と `default { … }` で書く。フォールスルーはしない。case の値は定数（int か enum の値）で、重複するとエラー。
+- **関数の戻り値**：`fn F(x: int) -> int { … }` と書く。値を返す関数で `return` が抜ける経路があればエラー。
+- **await**：待機ありのコマンドに加えて、待機を含む関数（間接的に含むものも）の呼び出しにも必要。待機しないものに付けるとエラー。
+- **組み込み関数**：`int()`、`float()`、`rand(n)`、`min()`、`max()`、`abs()`。
+- **loop**：`loop { … }` に待機も `break` もなければエラー。`loop (n) { … }` は回数指定。
+- **演算**：`&&` と `||` は短絡評価。int と float の演算では int を float に昇格する。文字列は `==` と `!=` だけ。
+
+詳細はリポジトリの `docs/language.md`。
+
 ### goto を持たない理由
 
 書く側の言語に goto はないが、バイトコードには `JMP` / `JZ` があり、if や loop はコンパイラがジャンプに変換する（LT と同じ）。
@@ -450,10 +462,10 @@ queries:
 
 ### 項目
 
-- **共通**：`name`（内部名。変更しない）、`display`（エディタ表示名）、`category`、`description`、`deprecated`。
-- **コマンド**：`latent`（待機ありか）、`channel`、`outputs`（Completed 以外の出力ピン）。
-- **引数**：`type`、`default`、`range`、`asset`（エディタでアセットを選ぶための種別。例：`bgm`、`actor`）。
-- **変数**：`id` は一度付けたら変えない。削除した ID は `retired` に移して再利用を防ぐ。
+- **共通**：`name`（内部名。変更しない）、`display`（エディタ表示名）、`category`、`description`、`deprecated`（true にすると使った箇所に警告）。
+- **コマンド**：`latent`（待機ありか）、`channel`、`returns`（戻り値の型。省略すると値を返さない）、`outputs`（Completed 以外の出力ピン。未実装）。クエリは `returns` 必須で、`latent` と `channel` は指定できない。
+- **引数**：`type`、`default`、`range`、`asset`（エディタでアセットを選ぶための種別。例：`bgm`、`actor`）。`range` と `asset` は編集ツール向けの情報で、今のコンパイラは検査しない。
+- **変数**：`id` は一度付けたら変えない。`init` で初期値を書く（省略すると 0 / false / 空文字列）。`bits` は今は記録のみ。削除した ID は `retired` に移して再利用を防ぐ（`retired` の検査は未実装）。
 
 ### マニフェストからの生成物
 
@@ -656,7 +668,7 @@ LT の実行時の設計（事前コンパイルと実行キュー）は引き�
 
 最初にコアとコンパイラを作り、バイトコード形式と C API を凍結してから、エンジン統合とエディタを並行で進める。各段階の期間は、体制が決まった時点で見積もる。
 
-**進捗（2026-10-06）**：段階1のコアVM・C API を `atom.script` リポジトリに実装済み（テスト39件、Debug / Release とも成功、メモリリークなし）。`.atsb` の書き出しライブラリも作成済みで、次はコンパイラ `atsc`。
+**進捗（2026-10-06）**：段階1のコアVM・C API とコンパイラ `atsc`（compile / validate / disasm）を `atom.script` リポジトリに実装済み（テスト48件、Debug / Release とも成功）。残りは `atsc` の gen / fmt / strings / refs と、段階2以降。
 
 ```mermaid
 flowchart LR

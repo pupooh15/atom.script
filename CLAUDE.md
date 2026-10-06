@@ -9,7 +9,9 @@ LT（DS、2007年）のスクリプトマネージャ（`E:\usr\app\ds\LT\prog\s
 スクリプトは当面テキスト（`.ats`）で書き、最終的にはノードエディタが同じ `.ats` を出力する。
 
 - 仕様書の正本：Claude Docs「AtomScript 仕様書（ドラフト）」 https://claude.ai/code/artifact/f9a9efc7-d931-4d44-9332-b9f199bc9c02
-  - `docs/spec.md` はその書き出し（2026-10-06 時点のコピー。図は Mermaid に描き直し済み）。仕様書を大きく変えたら書き出し直す。
+  - `docs/spec.md` はその書き出し（図は Mermaid に描き直し済み）。仕様書を変えたら書き出し直す：
+    Claude Docs の export（format: markdown）の結果を保存し、`python tools/scripts/export_spec.py <保存したファイル>` を実行する。
+    仕様書に図を足したら、スクリプトの `DIAGRAMS` に Mermaid 版を追加する。
 - 言語・マニフェスト・atsc のリファレンス：`docs/language.md`
 - バイナリ形式・命令・セーブ形式：`docs/bytecode.md`
 - GitHub：`git@github.com:pupooh15/atom.script.git`（main）
@@ -74,13 +76,11 @@ CMAKE="/c/Program Files (x86)/Microsoft Visual Studio/2019/Professional/Common7/
 | 段階2：VS Code 拡張、Unity 統合、UE 統合 | 未着手 |
 | 段階3：家庭用機・モバイル対応、ノードエディタ | 未着手 |
 
-## ユーザーへの確認待ち（次のセッションで最初に聞く）
+## ユーザーへの確認待ち
 
-1. （済）atsc の作業はコミット・プッシュ済み。コミット・プッシュは毎回ユーザーの指示を待つこと。
-2. 実装中に決めた文法・マニフェストの追加を仕様書（§4・§8）に反映してよいか：
-   `wait frames N` / `yield`、組み込み関数 `int()` `float()` `rand()` `min()` `max()` `abs()`、`case 値 { … }`（フォールスルーなし）、
-   `fn F() -> 型`、待機を含む関数の呼び出しにも `await` 必須、マニフェストの `returns` / `deprecated` / 共有変数の `init`。
-   反映したら `docs/spec.md` も書き出し直す（Claude Docs の export → Mermaid 図に差し替え）。
+現在なし。コミット・プッシュは毎回ユーザーの指示を待つこと。
+
+（済）atsc の実装中に決めた文法・マニフェストの追加は仕様書 §4「文法の補足」・§8 に反映し、`docs/spec.md` も書き出し直した。
 
 ## 次の作業の候補
 
