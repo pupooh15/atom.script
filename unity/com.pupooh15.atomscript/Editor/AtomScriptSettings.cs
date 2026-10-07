@@ -14,6 +14,11 @@ namespace AtomScript.Editor
 	{
 		[SerializeField] string m_manifestPath = string.Empty;		// プロジェクトからの相対パス。空なら Assets から自動で探す
 		[SerializeField] string m_compilerPath = string.Empty;		// 空ならパッケージ同梱の atsc
+		[SerializeField] bool   m_generateCSharp = true;			// マニフェストが変わったら C# の登録コードを作り直す
+		[SerializeField] string m_csharpOutputPath = DefaultCSharpOutputPath;	// {Project} はマニフェストの project（PascalCase）
+		[SerializeField] string m_csharpNamespace = string.Empty;	// 空なら project（PascalCase）
+
+		public const string DefaultCSharpOutputPath = "Assets/AtomScript/Generated/{Project}.g.cs";
 
 		public string ManifestPath
 		{
@@ -25,6 +30,24 @@ namespace AtomScript.Editor
 		{
 			get => m_compilerPath;
 			set { if( m_compilerPath == value ) return; m_compilerPath = value ?? string.Empty; Changed(); }
+		}
+
+		public bool GenerateCSharp
+		{
+			get => m_generateCSharp;
+			set { if( m_generateCSharp == value ) return; m_generateCSharp = value; Save( true ); if( value ) CSharpGenerator.Schedule(); }
+		}
+
+		public string CSharpOutputPath
+		{
+			get => string.IsNullOrEmpty( m_csharpOutputPath ) ? DefaultCSharpOutputPath : m_csharpOutputPath;
+			set { if( m_csharpOutputPath == value ) return; m_csharpOutputPath = value ?? string.Empty; Save( true ); CSharpGenerator.Schedule(); }
+		}
+
+		public string CSharpNamespace
+		{
+			get => m_csharpNamespace;
+			set { if( m_csharpNamespace == value ) return; m_csharpNamespace = value ?? string.Empty; Save( true ); CSharpGenerator.Schedule(); }
 		}
 
 		void Changed()
@@ -71,6 +94,15 @@ namespace AtomScript.Editor
 				EditorGUILayout.HelpBox( "使用中：" + exe, MessageType.Info );
 			else
 				EditorGUILayout.HelpBox( error, MessageType.Error );
+
+			EditorGUILayout.Space();
+			EditorGUILayout.LabelField( "C# の登録コード（atsc gen）", EditorStyles.boldLabel );
+			s.GenerateCSharp = EditorGUILayout.Toggle( new GUIContent( "自動で生成", "マニフェストが変わったら作り直す（中身が同じなら書き換えない）" ), s.GenerateCSharp );
+			s.CSharpOutputPath = EditorGUILayout.DelayedTextField( new GUIContent( "出力先", "プロジェクトからの相対パス。{Project} はマニフェストの project（PascalCase）" ), s.CSharpOutputPath );
+			s.CSharpNamespace = EditorGUILayout.DelayedTextField( new GUIContent( "名前空間", "空ならマニフェストの project（PascalCase）" ), s.CSharpNamespace );
+			if( ManifestLocator.TryResolve( out manifest, out _ ) )
+				EditorGUILayout.LabelField( " ", "→ " + CSharpGenerator.OutputPathFor( manifest ) );
+			if( GUILayout.Button( "今すぐ生成", GUILayout.Width( 220 ) ) ) CSharpGenerator.GenerateNow( log: true );
 
 			EditorGUILayout.Space();
 			if( GUILayout.Button( "すべての .ats を再インポート", GUILayout.Width( 220 ) ) ) AtsImporter.ReimportAll();

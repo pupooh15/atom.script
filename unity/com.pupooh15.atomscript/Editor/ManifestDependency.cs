@@ -1,5 +1,5 @@
 //=========================================================================
-//	ManifestDependency：マニフェスト（include 先を含む）と atsc が変わったら .ats を再インポートさせる
+//	ManifestDependency：マニフェスト（include 先を含む）と atsc が変わったら .ats を再インポートさせ、C# の登録コードを作り直す
 //	Unity のカスタム依存（AssetDatabase.RegisterCustomDependency）に内容のハッシュを登録し、
 //	各 .ats のインポートがそれに依存する。ハッシュが変わると、次の Refresh で .ats がすべて再インポートされる。
 //=========================================================================
@@ -31,6 +31,7 @@ namespace AtomScript.Editor
 		public static void Update( bool refresh )
 		{
 			Hash128 h = Compute();
+			CSharpGenerator.OnManifestHash( h );		// C# の登録コードも作り直す（設定で自動のとき）
 			if( h == s_registered ) return;
 			s_registered = h;
 			AssetDatabase.RegisterCustomDependency( Name, h );

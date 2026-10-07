@@ -12,7 +12,7 @@ LT（DS）のスクリプトマネージャを参考に新規設計したもの�
 | 書き出しライブラリ（`tools/writer`） | 実装済み |
 | コンパイラ `atsc`（`.ats` → `.atsb`） | 実装済み（[docs/language.md](docs/language.md)）。`gen` は C++・C#（Unity）・HTML に対応。`fmt` / `strings` / `refs` は未実装 |
 | VS Code 拡張（`editors/vscode`） | 実装済み。構文ハイライト・スニペット・言語サーバー（`atsc lsp`）によるエラー表示・補完・ホバー・定義へ移動・引数ヒント・アウトライン |
-| Unity パッケージ（`unity/com.pupooh15.atomscript`） | C# ラッパー（P/Invoke・SafeHandle・`Awaitable`）、PlayerLoop での更新、`.ats` の ScriptedImporter を実装済み。Windows x64 のみ |
+| Unity パッケージ（`unity/com.pupooh15.atomscript`） | C# ラッパー（P/Invoke・SafeHandle・`Awaitable`）、PlayerLoop での更新、`.ats` の ScriptedImporter、エディタからの C# 生成を実装済み。Windows x64 のみ |
 | UE 統合、デバッガ | 未着手 |
 
 ## ディレクトリ

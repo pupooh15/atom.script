@@ -72,15 +72,51 @@ namespace AtomScript.Editor
 		public static Result Compile( string sourcePath, string manifestPath )
 		{
 			var result = new Result();
-			if( !TryFindCompiler( out string exe, out string error ) ){ result.ToolError = error; return result; }
-
 			string outDir = Path.Combine( ProjectPaths.Root, "Temp", "AtomScript" );
 			Directory.CreateDirectory( outDir );
 			string outPath = Path.Combine( outDir, Guid.NewGuid().ToString( "N" ) + ".atsb" );
 			try {
+				if( !Run( $"compile {Quote( sourcePath )} -m {Quote( manifestPath )} -o {Quote( outPath )} --json", result, out int exit ) ) return result;
+				if( exit == 0 && File.Exists( outPath ) ){
+					result.Bytecode = File.ReadAllBytes( outPath );
+					result.Success = true;
+				}
+			} finally {
+				try { if( File.Exists( outPath ) ) File.Delete( outPath ); } catch {}
+			}
+			return result;
+		}
+
+		// atsc gen --lang csharp。成功すれば生成したテキストを Text に入れる
+		public static Result GenerateCSharp( string manifestPath, string nameSpace, out string text )
+		{
+			text = null;
+			var result = new Result();
+			string outDir = Path.Combine( ProjectPaths.Root, "Temp", "AtomScript" );
+			Directory.CreateDirectory( outDir );
+			string outPath = Path.Combine( outDir, Guid.NewGuid().ToString( "N" ) + ".cs" );
+			try {
+				string ns = string.IsNullOrEmpty( nameSpace ) ? "" : $" --namespace {Quote( nameSpace )}";
+				if( !Run( $"gen -m {Quote( manifestPath )} --lang csharp -o {Quote( outPath )}{ns} --json", result, out int exit ) ) return result;
+				if( exit == 0 && File.Exists( outPath ) ){
+					text = File.ReadAllText( outPath, Encoding.UTF8 );
+					result.Success = true;
+				}
+			} finally {
+				try { if( File.Exists( outPath ) ) File.Delete( outPath ); } catch {}
+			}
+			return result;
+		}
+
+		// atsc を起動して診断（--json）を result に集める。起動できなければ false
+		static bool Run( string arguments, Result result, out int exit )
+		{
+			exit = -1;
+			if( !TryFindCompiler( out string exe, out string error ) ){ result.ToolError = error; return false; }
+			try {
 				var psi = new ProcessStartInfo {
 					FileName				= exe,
-					Arguments				= $"compile {Quote( sourcePath )} -m {Quote( manifestPath )} -o {Quote( outPath )} --json",
+					Arguments				= arguments,
 					UseShellExecute			= false,
 					CreateNoWindow			= true,
 					RedirectStandardOutput	= true,
@@ -90,37 +126,31 @@ namespace AtomScript.Editor
 					WorkingDirectory		= ProjectPaths.Root,
 				};
 				string stdout, stderr;
-				int exit;
 				using( Process p = Process.Start( psi ) ){
 					var errTask = p.StandardError.ReadToEndAsync();
 					stdout = p.StandardOutput.ReadToEnd();
 					if( !p.WaitForExit( kTimeoutMs ) ){
 						try { p.Kill(); } catch {}
 						result.ToolError = $"atsc が {kTimeoutMs / 1000} 秒以内に終わりませんでした";
-						return result;
+						return false;
 					}
 					stderr = errTask.Result;
 					exit = p.ExitCode;
 				}
-
 				string json = stdout.Trim();
 				if( json.StartsWith( "[" ) ){
 					var list = JsonUtility.FromJson<DiagnosticList>( "{\"items\":" + json + "}" );
 					if( list?.items != null ) result.Diagnostics.AddRange( list.items );
 				}
-				if( exit == 0 && File.Exists( outPath ) ){
-					result.Bytecode = File.ReadAllBytes( outPath );
-					result.Success = true;
-				} else if( result.Diagnostics.Count == 0 ){
+				if( exit != 0 && result.Diagnostics.Count == 0 ){
 					string msg = (stderr + "\n" + stdout).Trim();
 					result.ToolError = $"atsc が失敗しました（終了コード {exit}）" + (msg.Length > 0 ? ": " + msg : "");
 				}
+				return true;
 			} catch( Exception e ){
 				result.ToolError = $"atsc を実行できません: {e.Message}";
-			} finally {
-				try { if( File.Exists( outPath ) ) File.Delete( outPath ); } catch {}
+				return false;
 			}
-			return result;
 		}
 
 		static string Quote( string s ) => "\"" + s.Replace( "\"", "\\\"" ) + "\"";

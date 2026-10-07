@@ -20,6 +20,7 @@ namespace AtomScript.Tests
 		const string kManifest = kDir + "/test.atsmanifest.yaml";
 
 		string			m_savedManifestPath;
+		bool			m_savedGenerate;
 		List<string>	m_errors;
 
 		static string Src( string name ) => Path.GetFullPath( WrapperTests.DataDir + name );
@@ -38,6 +39,8 @@ namespace AtomScript.Tests
 			Directory.CreateDirectory( kDir );
 			File.Copy( Src( "wrapper_test.atsmanifest.yaml" ), kManifest );
 			m_savedManifestPath = AtomScriptSettings.instance.ManifestPath;
+			m_savedGenerate = AtomScriptSettings.instance.GenerateCSharp;
+			AtomScriptSettings.instance.GenerateCSharp = false;		// Assets に .cs を書かせない（テスト中の再コンパイルを避ける）
 			AtomScriptSettings.instance.ManifestPath = kManifest;
 			AssetDatabase.Refresh( ImportAssetOptions.ForceSynchronousImport );
 		}
@@ -48,6 +51,8 @@ namespace AtomScript.Tests
 			// 先にフォルダーを消してから設定を戻す（逆だと消えたマニフェストで再インポートが走る）
 			AssetDatabase.DeleteAsset( kDir );
 			AtomScriptSettings.instance.ManifestPath = m_savedManifestPath;
+			CSharpGenerator.RunScheduled();
+			AtomScriptSettings.instance.GenerateCSharp = m_savedGenerate;
 			ManifestDependency.Update( refresh: false );
 			AssetDatabase.Refresh( ImportAssetOptions.ForceSynchronousImport );
 			Application.logMessageReceived -= OnLog;
