@@ -47,8 +47,11 @@ tools/writer/                    .atsb 書き出し（STL 可）。max_stack を
 tools/compiler/                  コンパイラ：yaml → manifest → lexer → parser → compiler（意味検査＋コード生成）、disasm、
                                  gen（C++ / HTML）、json と lsp（言語サーバー）、atsc_main
 editors/vscode/                  VS Code 拡張（TypeScript。解析は atsc lsp に任せ、拡張側に解析器は持たない）
-unity/com.pupooh15.atomscript/   Unity パッケージ（パッケージ名は仮）。Runtime/ が C# ラッパー、Editor/ がインポーターと設定、Tests/Editor/ が EditMode テスト
-                                 Tests/Editor/Generated/*.g.cs と Data~/*.atsb.bytes は CMake のビルドで atsc から作られる（コミットする）
+unity/com.pupooh15.atomscript/   Unity パッケージ（パッケージ名は仮）。Runtime/ が C# ラッパー、Editor/ がインポーターと設定、Tests/Editor/ が EditMode テスト、
+                                 Tests/Runtime/ が PlayMode・プレイヤー用テスト（全プラットフォーム対象。エディタのテストからも参照する）
+                                 Tests/*/Generated/*.g.cs と Data~/*.atsb.bytes は CMake のビルドで atsc から作られる（コミットする）。
+                                 プレイヤーはファイルを読めないので、SampleRpg の .atsb は Tests/Runtime/Generated/SampleRpgBytecode.g.cs に埋め込む
+                                 （tools/cmake/embed_csharp_bytes.cmake。Resources に置くと利用者のゲームに入ってしまうため）
                                  Runtime/Plugins/ と Editor/Tools~/ はビルドで作る（コミットしない）。Windows は Plugins/Windows/x86_64/atomscript.dll と Tools~/win-x64/atsc.exe、
                                  macOS は Plugins/macOS/atomscript.bundle と Tools~/osx/atsc（どちらもユニバーサル）
 unity/plugin-meta/               プラグインの .meta の正本（GUID とプラットフォーム設定）。CMake がバイナリと一緒にパッケージへコピーする。
@@ -78,14 +81,14 @@ echo y | npx vsce package                  # LICENSE が無いので確認に y 
 # スクラッチ領域などに空のプロジェクトを作り、Packages/manifest.json に
 #   "com.pupooh15.atomscript": "file:E:/usr/app/github/atom.script/unity/com.pupooh15.atomscript",
 #   "com.unity.test-framework": "1.6.0"  と  "testables": [ "com.pupooh15.atomscript" ] を書いて：
-"/c/Program Files/Unity/Hub/Editor/6000.0.67f1/Editor/Unity.exe" -batchmode -nographics -projectPath <プロジェクト>     -runTests -testPlatform EditMode -testResults results.xml -logFile unity.log   # 現在 28 件すべて成功
+"/c/Program Files/Unity/Hub/Editor/6000.0.67f1/Editor/Unity.exe" -batchmode -nographics -projectPath <プロジェクト>     -runTests -testPlatform EditMode -testResults results.xml -logFile unity.log   # 現在 28 件すべて成功（PlayMode は 2 件）
 ```
 
 - Unity は 8.3 形式の短いパス（`KAZUHI~1.HAG`）のプロジェクトだとプレイヤービルドが失敗する。長いパスで渡す。
 - IL2CPP（StandaloneWindows64）で確かめるときは `-testPlatform StandaloneWindows64 -testSettingsFile <{"scriptingBackend":"IL2CPP"}>`。
   プロジェクトのパスが深いと出力が MAX_PATH（260 文字）を超え、プレイヤーが「Failed to initialize IL2CPP」で止まる（エディタは待ち続ける）。
-  スクラッチ領域は深すぎるので、短いパス（例 `E:\tmp\…`）に一時プロジェクトを作る。プレイヤー用のテストはパッケージに無いので、
-  Assets に PlayMode テスト（生成コードと .atsb を Resources に置く）を一時的に作って動かした（2026-10-07 に 1 件成功）。
+  スクラッチ領域は深すぎるので、短いパス（例 `E:\tmp\…`）に一時プロジェクトを作る。
+  （2026-10-07 に Assets へ一時的に作ったテストで 1 件成功。今はパッケージの Tests/Runtime にあるので、Windows のプレイヤーでは未実施）
 - Unity はパッケージに .meta を書き出す。新しいファイルを足したら .meta もコミットする（プラグインの .meta だけは unity/plugin-meta に置く）。
 - 構文ハイライトの正規表現は vscode-textmate + vscode-oniguruma で実際に字句分けして確かめた（スクラッチ領域で実施。リポジトリには入れていない）。
 
@@ -108,14 +111,14 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
 # Unity パッケージのテスト（Windows と同じ手順。manifest.json の file: は /Users/…/atom.script/unity/com.pupooh15.atomscript）
 "/Applications/Unity/Hub/Editor/6000.0.67f1/Unity.app/Contents/MacOS/Unity" -batchmode -nographics -projectPath <プロジェクト> \
     -runTests -testPlatform EditMode -testResults results.xml -logFile unity.log   # 2026-10-07 に 28 件すべて成功（エディタは arm64）
+# -testPlatform PlayMode でエディタ内、-testPlatform StandaloneOSX でプレイヤー（IL2CPP は -testSettingsFile に {"scriptingBackend":"IL2CPP"}）
 ```
-- macOS プレイヤーの確認（2026-10-07）：Windows のときと同様に一時プロジェクトの Assets に PlayMode テストを作った
-  （SampleRpg.g.cs と .atsb を Resources に置き、AtomScriptLoop で数フレームかかる待機ありコマンドを動かす＋セーブ／ロード＋中断でキャンセル通知）。
-  `-testPlatform StandaloneOSX`（IL2CPP は `-testSettingsFile` に `{"scriptingBackend":"IL2CPP"}`）で、arm64 / x64（Rosetta）× Mono / IL2CPP の 4 通りとも 2 件成功。
-  アーキテクチャは `UnityEditor.OSXStandalone.UserBuildSettings.architecture` を [InitializeOnLoad] のエディタスクリプトで切り替えた。
+- プレイヤー用テスト（Tests/Runtime/PlayerTests.cs、2 件）：AtomScriptLoop で数フレームかかる待機ありコマンドを動かす＋セーブ／ロード＋中断でキャンセル通知。
+  2026-10-07 に PlayMode（エディタ内）と macOS プレイヤー arm64 / x64（Rosetta）× Mono / IL2CPP の 4 通りで成功。
+  アーキテクチャはテスト用プロジェクトの [InitializeOnLoad] のエディタスクリプトで `UnityEditor.OSXStandalone.UserBuildSettings.architecture` を切り替えた。
   - 初回は「Error building Player because scripts are compiling」で失敗することがある。先に `-batchmode -quit` で一度開いておく。
   - この Mac では IL2CPP のリンクも SDK 27 で失敗する（Unity は `xcode-select -p` の下の一番新しい SDK を使い、SDKROOT は効かない）。
-    一時プロジェクトで `PlayerSettings.SetAdditionalIl2CppArgs( "--linker-flags=\"-isysroot …/MacOSX26.5.sdk\"" )` として回避した。
+    テスト用プロジェクトのエディタスクリプトで `PlayerSettings.SetAdditionalIl2CppArgs( "--linker-flags=\"-isysroot …/MacOSX26.5.sdk\"" )` として回避した。
     Command Line Tools を更新すれば不要になるはず。
 - メモリの不具合は ASan で確かめられる：`-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined"`（リンカーフラグにも同じものを付ける）。
 
@@ -146,15 +149,16 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
   - テストで `Env` を `Host` より先に宣言していたため、VM の破棄時のキャンセル通知が破棄済みの `Host` に書き込んでいた（MSVC ではたまたま表に出ていなかった）。
     VM の破棄時にホストへ通知が来るので、ホスト側のオブジェクトは `Env` より先に宣言する。
   - コンパイラが型エラーの印に `(ats_type)0xFF`（列挙型の範囲外＝未定義動作）を使っていた。`TypeRef::error` に変更。
+- プレイヤー用テストをパッケージ（Tests/Runtime）に追加。
 - プラグインの .meta を `unity/plugin-meta/` に移し、パッケージの `Runtime/Plugins/` をビルド生成物にした
   （バイナリの無いプラットフォームで Unity が .meta を消すため）。
 
 ## 次にやること（優先順）
 
-1. **Windows でビルドし直して確認する**：`unity/plugin-meta` から .meta がコピーされること、EditMode テスト 28 件、
+1. **Windows でビルドし直して確認する**：`unity/plugin-meta` から .meta がコピーされること、EditMode テスト 28 件、PlayMode・Windows プレイヤー（Mono / IL2CPP）のテスト 2 件、
    コアのテスト 58 件（Debug / Release）、/W4 で警告ゼロ（`TypeRef` とテストの変更が入っている）。
    既存の Unity プロジェクトのパッケージ内に古い `Runtime/Plugins` が残っていても、ビルドで上書きされるので問題ない想定
-2. macOS の残り：Intel 版エディタでの確認、配布用の署名・公証。プレイヤー用のテストをパッケージに入れるか（今は毎回一時プロジェクトで作っている）
+2. macOS の残り：Intel 版エディタでの確認、配布用の署名・公証
 3. 下の「次の作業の候補」から（Android / iOS のプラグインなど）
 
 ## ユーザーへの確認待ち
@@ -169,7 +173,7 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
 
 - Unity パッケージの続き：`.ats` のアイコン、
   macOS の Intel 版エディタでの確認、配布用の署名・公証（今は ad-hoc 署名のみ）、
-  Android / iOS / 家庭用機のプラグイン、PlayMode（実機）で動くテスト。
+  Android / iOS / 家庭用機のプラグイン（プレイヤー用テストは Tests/Runtime にある）。
   インポートは 1 ファイル 0.5〜0.8 秒（atsc の起動込み）。数が増えて遅ければ、まとめてコンパイルする方法を考える
 - `gen` の改善候補：`Commands` をカテゴリごとに分割できるようにする、UE 向け（UObject / Blueprint）の生成
 - `atsc fmt` / `strings` / `refs`

@@ -1,16 +1,11 @@
 {
-    "name": "AtomScript.Tests.Editor",
+    "name": "AtomScript.Tests.Runtime",
     "rootNamespace": "AtomScript.Tests",
     "references": [
         "AtomScript.Runtime",
-        "AtomScript.Editor",
-        "AtomScript.Tests.Runtime",
-        "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEngine.TestRunner"
     ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": true,

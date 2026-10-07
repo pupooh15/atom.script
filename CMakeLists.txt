@@ -162,21 +162,33 @@ endif()
 set( ATS_UNITY_PACKAGE "${CMAKE_CURRENT_SOURCE_DIR}/unity/com.pupooh15.atomscript" )
 if( EXISTS "${ATS_UNITY_PACKAGE}" )
 	set( ATS_UNITY_TESTS "${ATS_UNITY_PACKAGE}/Tests/Editor" )
+	set( ATS_UNITY_RUNTIME_TESTS "${ATS_UNITY_PACKAGE}/Tests/Runtime" )
 	set( ATS_UNITY_OUTPUTS )
-	# ats_unity_asset( 名前 マニフェスト スクリプト )
-	function( ats_unity_asset name manifest script )
+	# ats_unity_asset( 名前 マニフェスト スクリプト 生成コードの置き場所 )
+	function( ats_unity_asset name manifest script gen_dir )
 		add_custom_command(
-			OUTPUT "${ATS_UNITY_TESTS}/Generated/${name}.g.cs" "${ATS_UNITY_TESTS}/Data~/${name}.atsb.bytes"
-			COMMAND atsc gen -m "${manifest}" --lang csharp -o "${ATS_UNITY_TESTS}/Generated/${name}.g.cs"
+			OUTPUT "${gen_dir}/${name}.g.cs" "${ATS_UNITY_TESTS}/Data~/${name}.atsb.bytes"
+			COMMAND atsc gen -m "${manifest}" --lang csharp -o "${gen_dir}/${name}.g.cs"
 			COMMAND atsc compile "${script}" -m "${manifest}" -o "${CMAKE_CURRENT_BINARY_DIR}/${name}.atsb"
 			COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/${name}.atsb" "${ATS_UNITY_TESTS}/Data~/${name}.atsb.bytes"
 			DEPENDS atsc "${manifest}" "${script}"
 			COMMENT "Unity テスト用アセット: ${name}"
 		)
-		set( ATS_UNITY_OUTPUTS ${ATS_UNITY_OUTPUTS} "${ATS_UNITY_TESTS}/Generated/${name}.g.cs" "${ATS_UNITY_TESTS}/Data~/${name}.atsb.bytes" PARENT_SCOPE )
+		set( ATS_UNITY_OUTPUTS ${ATS_UNITY_OUTPUTS} "${gen_dir}/${name}.g.cs" "${ATS_UNITY_TESTS}/Data~/${name}.atsb.bytes" PARENT_SCOPE )
 	endfunction()
-	ats_unity_asset( SampleRpg "${CMAKE_CURRENT_SOURCE_DIR}/samples/sample.atsmanifest.yaml" "${CMAKE_CURRENT_SOURCE_DIR}/samples/merchant.ats" )
-	ats_unity_asset( WrapperTest "${ATS_UNITY_TESTS}/Data~/wrapper_test.atsmanifest.yaml" "${ATS_UNITY_TESTS}/Data~/wrapper_test.ats" )
+	# SampleRpg はプレイヤー用テスト（Tests/Runtime）でも使うので、生成コードはそちらに置く
+	ats_unity_asset( SampleRpg "${CMAKE_CURRENT_SOURCE_DIR}/samples/sample.atsmanifest.yaml" "${CMAKE_CURRENT_SOURCE_DIR}/samples/merchant.ats" "${ATS_UNITY_RUNTIME_TESTS}/Generated" )
+	ats_unity_asset( WrapperTest "${ATS_UNITY_TESTS}/Data~/wrapper_test.atsmanifest.yaml" "${ATS_UNITY_TESTS}/Data~/wrapper_test.ats" "${ATS_UNITY_TESTS}/Generated" )
+
+	# プレイヤーではファイルを読めないので、.atsb を C# のバイト配列にして埋め込む
+	add_custom_command(
+		OUTPUT "${ATS_UNITY_RUNTIME_TESTS}/Generated/SampleRpgBytecode.g.cs"
+		COMMAND ${CMAKE_COMMAND} -DINPUT=${ATS_UNITY_TESTS}/Data~/SampleRpg.atsb.bytes -DOUTPUT=${ATS_UNITY_RUNTIME_TESTS}/Generated/SampleRpgBytecode.g.cs
+			-DNAMESPACE=AtomScript.Tests -DCLASS=SampleRpgBytecode "-DSOURCE=samples/merchant.ats をコンパイルした .atsb" -P "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/embed_csharp_bytes.cmake"
+		DEPENDS "${ATS_UNITY_TESTS}/Data~/SampleRpg.atsb.bytes" "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/embed_csharp_bytes.cmake"
+		COMMENT "Unity テスト用アセット: SampleRpgBytecode.g.cs"
+	)
+	list( APPEND ATS_UNITY_OUTPUTS "${ATS_UNITY_RUNTIME_TESTS}/Generated/SampleRpgBytecode.g.cs" )
 	add_custom_target( unity_test_assets ALL DEPENDS ${ATS_UNITY_OUTPUTS} )
 
 	# プラグインの .meta（GUID とプラットフォーム設定）は unity/plugin-meta に置き、バイナリと一緒にコピーする。
