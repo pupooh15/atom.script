@@ -1,4 +1,14 @@
 cmake_minimum_required( VERSION 3.16 )
+
+# macOS は Apple Silicon・Intel の両方で動くユニバーサルバイナリにする（Unity 6 の動作環境に合わせて 11.0 以上）。
+# project() より前に決める必要がある
+if( APPLE AND NOT CMAKE_OSX_ARCHITECTURES AND NOT CMAKE_SYSTEM_NAME MATCHES "iOS" )
+	set( CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "macOS のアーキテクチャ" )
+endif()
+if( APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET AND NOT CMAKE_SYSTEM_NAME MATCHES "iOS" )
+	set( CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "macOS の最小バージョン" )
+endif()
+
 project( AtomScript VERSION 0.1.0 LANGUAGES CXX )
 
 set( CMAKE_CXX_STANDARD 17 )
@@ -49,6 +59,21 @@ if( ATS_BUILD_SHARED )
 	add_library( atomscript SHARED ${ATS_CORE_SOURCES} )
 	ats_core_options( atomscript )
 	target_compile_definitions( atomscript PRIVATE ATS_BUILD_DLL )
+
+	# macOS の Unity 用プラグイン（atomscript.bundle）。DllImport( "atomscript" ) で読まれる
+	if( APPLE AND NOT CMAKE_SYSTEM_NAME MATCHES "iOS" )
+		add_library( atomscript_bundle MODULE ${ATS_CORE_SOURCES} )
+		ats_core_options( atomscript_bundle )
+		target_compile_definitions( atomscript_bundle PRIVATE ATS_BUILD_DLL )
+		set_target_properties( atomscript_bundle PROPERTIES
+			BUNDLE						TRUE
+			OUTPUT_NAME					atomscript
+			MACOSX_BUNDLE_GUI_IDENTIFIER	com.pupooh15.atomscript
+			MACOSX_BUNDLE_BUNDLE_NAME		atomscript
+			MACOSX_BUNDLE_BUNDLE_VERSION	${PROJECT_VERSION}
+			MACOSX_BUNDLE_SHORT_VERSION_STRING	${PROJECT_VERSION}
+		)
+	endif()
 endif()
 
 # .atsb の書き出し（コンパイラ・テスト用。STL を使う）
@@ -122,7 +147,7 @@ if( ATS_BUILD_TESTS )
 		"${ATS_GENERATED_DIR}/sample_rpg.atsgen.h"
 	)
 	target_include_directories( atomscript_tests PRIVATE "${ATS_GENERATED_DIR}" )
-	target_link_libraries( atomscript_tests PRIVATE atomscript_static atomscript_writer atomscript_compiler )
+	target_link_libraries( atomscript_tests PRIVATE atomscript_static atomscript_compiler )
 	target_compile_definitions( atomscript_tests PRIVATE ATS_SAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/samples" )
 	if( MSVC )
 		target_compile_options( atomscript_tests PRIVATE /W4 /utf-8 /EHsc )
@@ -154,15 +179,41 @@ if( EXISTS "${ATS_UNITY_PACKAGE}" )
 	ats_unity_asset( WrapperTest "${ATS_UNITY_TESTS}/Data~/wrapper_test.atsmanifest.yaml" "${ATS_UNITY_TESTS}/Data~/wrapper_test.ats" )
 	add_custom_target( unity_test_assets ALL DEPENDS ${ATS_UNITY_OUTPUTS} )
 
+	# プラグインの .meta（GUID とプラットフォーム設定）は unity/plugin-meta に置き、バイナリと一緒にコピーする。
+	# パッケージの Runtime/Plugins はビルドで作るもので、リポジトリには入れない
+	# （入れておくと、バイナリの無いプラットフォームで Unity が持ち主のいない .meta を消してしまう）
+	set( ATS_UNITY_PLUGIN_META "${CMAKE_CURRENT_SOURCE_DIR}/unity/plugin-meta" )
+	set( ATS_UNITY_PLUGINS "${ATS_UNITY_PACKAGE}/Runtime/Plugins" )
+
 	# エディタ（Windows x64）で使う DLL と、インポーターが呼ぶ atsc をパッケージにコピーする（最後にビルドした構成のものが入る）
 	if( WIN32 AND ATS_BUILD_SHARED AND CMAKE_SIZEOF_VOID_P EQUAL 8 )
 		add_custom_target( unity_plugin ALL
-			COMMAND ${CMAKE_COMMAND} -E make_directory "${ATS_UNITY_PACKAGE}/Runtime/Plugins/Windows/x86_64"
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:atomscript>" "${ATS_UNITY_PACKAGE}/Runtime/Plugins/Windows/x86_64/"
+			COMMAND ${CMAKE_COMMAND} -E make_directory "${ATS_UNITY_PLUGINS}/Windows/x86_64"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins.meta" "${ATS_UNITY_PACKAGE}/Runtime/"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins/Windows.meta" "${ATS_UNITY_PLUGINS}/"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins/Windows/x86_64.meta" "${ATS_UNITY_PLUGINS}/Windows/"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins/Windows/x86_64/atomscript.dll.meta" "${ATS_UNITY_PLUGINS}/Windows/x86_64/"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:atomscript>" "${ATS_UNITY_PLUGINS}/Windows/x86_64/"
 			COMMAND ${CMAKE_COMMAND} -E make_directory "${ATS_UNITY_PACKAGE}/Editor/Tools~/win-x64"
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:atsc>" "${ATS_UNITY_PACKAGE}/Editor/Tools~/win-x64/"
 			DEPENDS atomscript atsc
 			COMMENT "atomscript.dll と atsc.exe を Unity パッケージにコピー"
+		)
+	endif()
+
+	# macOS（ユニバーサル）：atomscript.bundle と atsc をコピーする。bundle は中身ごと置き換える
+	if( APPLE AND NOT CMAKE_SYSTEM_NAME MATCHES "iOS" AND ATS_BUILD_SHARED )
+		add_custom_target( unity_plugin ALL
+			COMMAND ${CMAKE_COMMAND} -E make_directory "${ATS_UNITY_PLUGINS}/macOS"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins.meta" "${ATS_UNITY_PACKAGE}/Runtime/"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins/macOS.meta" "${ATS_UNITY_PLUGINS}/"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins/macOS/atomscript.bundle.meta" "${ATS_UNITY_PLUGINS}/macOS/"
+			COMMAND ${CMAKE_COMMAND} -E rm -rf "${ATS_UNITY_PLUGINS}/macOS/atomscript.bundle"
+			COMMAND ${CMAKE_COMMAND} -E copy_directory "$<TARGET_BUNDLE_DIR:atomscript_bundle>" "${ATS_UNITY_PLUGINS}/macOS/atomscript.bundle"
+			COMMAND ${CMAKE_COMMAND} -E make_directory "${ATS_UNITY_PACKAGE}/Editor/Tools~/osx"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:atsc>" "${ATS_UNITY_PACKAGE}/Editor/Tools~/osx/"
+			DEPENDS atomscript_bundle atsc
+			COMMENT "atomscript.bundle と atsc を Unity パッケージにコピー"
 		)
 	endif()
 endif()

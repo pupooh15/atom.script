@@ -1,6 +1,6 @@
 # AtomScript — 作業の引き継ぎメモ
 
-新しいセッションはまずこのファイルを読むこと。最終更新：2026-10-06。
+新しいセッションはまずこのファイルを読むこと。最終更新：2026-10-07。
 
 ## これは何か
 
@@ -49,7 +49,10 @@ tools/compiler/                  コンパイラ：yaml → manifest → lexer �
 editors/vscode/                  VS Code 拡張（TypeScript。解析は atsc lsp に任せ、拡張側に解析器は持たない）
 unity/com.pupooh15.atomscript/   Unity パッケージ（パッケージ名は仮）。Runtime/ が C# ラッパー、Editor/ がインポーターと設定、Tests/Editor/ が EditMode テスト
                                  Tests/Editor/Generated/*.g.cs と Data~/*.atsb.bytes は CMake のビルドで atsc から作られる（コミットする）
-                                 Runtime/Plugins/Windows/x86_64/atomscript.dll と Editor/Tools~/win-x64/atsc.exe もビルドでコピーされる（バイナリはコミットしない。.dll の .meta はする）
+                                 Runtime/Plugins/ と Editor/Tools~/ はビルドで作る（コミットしない）。Windows は Plugins/Windows/x86_64/atomscript.dll と Tools~/win-x64/atsc.exe、
+                                 macOS は Plugins/macOS/atomscript.bundle と Tools~/osx/atsc（どちらもユニバーサル）
+unity/plugin-meta/               プラグインの .meta の正本（GUID とプラットフォーム設定）。CMake がバイナリと一緒にパッケージへコピーする。
+                                 パッケージ内に置くと、バイナリの無いプラットフォームで Unity が持ち主のいない .meta を消すため外に出した（2026-10-07）
                                  テスト用の .ats・マニフェストは Data~ に置く（~ 付きは Unity が読み込まない。パッケージ内の .ats がインポーターにかからないように）
 samples/                         sample.atsmanifest.yaml、merchant.ats（仕様書 §4 の例）
 tests/                           自前の簡易テスト（TEST / CHECK / REQUIRE）。Env が確保数を数えてリークを検出する
@@ -70,7 +73,6 @@ CMAKE="/c/Program Files (x86)/Microsoft Visual Studio/2019/Professional/Common7/
 cd editors/vscode && npm install && npm run compile
 npm test                                   # 実際の atsc lsp と標準入出力でやり取りする疎通テスト
 echo y | npx vsce package                  # LICENSE が無いので確認に y を渡す。先に npm run copy-atsc で bin/ に atsc を入れる
-```
 
 # Unity パッケージのテスト（先に上の CMake ビルドで DLL と生成物を作る。Unity 6000.0.67f1 で確認）
 # スクラッチ領域などに空のプロジェクトを作り、Packages/manifest.json に
@@ -82,15 +84,32 @@ echo y | npx vsce package                  # LICENSE が無いので確認に y 
 - Unity は 8.3 形式の短いパス（`KAZUHI~1.HAG`）のプロジェクトだとプレイヤービルドが失敗する。長いパスで渡す。
 - IL2CPP（StandaloneWindows64）で確かめるときは `-testPlatform StandaloneWindows64 -testSettingsFile <{"scriptingBackend":"IL2CPP"}>`。
   プロジェクトのパスが深いと出力が MAX_PATH（260 文字）を超え、プレイヤーが「Failed to initialize IL2CPP」で止まる（エディタは待ち続ける）。
-  スクラッチ領域は深すぎるので、短いパス（例 `E:	mp\…`）に一時プロジェクトを作る。プレイヤー用のテストはパッケージに無いので、
+  スクラッチ領域は深すぎるので、短いパス（例 `E:\tmp\…`）に一時プロジェクトを作る。プレイヤー用のテストはパッケージに無いので、
   Assets に PlayMode テスト（生成コードと .atsb を Resources に置く）を一時的に作って動かした（2026-10-07 に 1 件成功）。
-- Unity はパッケージに .meta を書き出す。新しいファイルを足したら .meta もコミットする。
-
-```bash
+- Unity はパッケージに .meta を書き出す。新しいファイルを足したら .meta もコミットする（プラグインの .meta だけは unity/plugin-meta に置く）。
 - 構文ハイライトの正規表現は vscode-textmate + vscode-oniguruma で実際に字句分けして確かめた（スクラッチ領域で実施。リポジトリには入れていない）。
 
 - PATH に cmake は無い。上のフルパスを使う。コンソール出力は cp932 なので、MSVC のメッセージを読むときは `iconv -f cp932 -t utf-8`。
 - 警告ゼロを維持する（/W4）。MSVC の printf 系に日本語リテラルを渡すと C4819 が出るので、書式なしなら `fputs` を使う。
+
+## ビルドとテスト（macOS）
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk
+cmake --build build -j                    # arm64 + x86_64 のユニバーサル、最小 macOS 11.0（CMakeLists.txt の既定）
+./build/atomscript_tests                   # arch -x86_64 を付けると Rosetta で x86_64 側も確かめられる
+```
+
+- この Mac（Command Line Tools のみ、Xcode なし）では既定の SDK（MacOSX27.0）が付属のリンカーで読めず、CMake の
+  コンパイラ検査で失敗する。`CMAKE_OSX_SYSROOT` に MacOSX26.5.sdk を指定する。
+- .bundle は arm64・x86_64 の両方で dlopen して `ats_get_api_version` が呼べることを確かめた（x86_64 は Rosetta）。
+
+```bash
+# Unity パッケージのテスト（Windows と同じ手順。manifest.json の file: は /Users/…/atom.script/unity/com.pupooh15.atomscript）
+"/Applications/Unity/Hub/Editor/6000.0.67f1/Unity.app/Contents/MacOS/Unity" -batchmode -nographics -projectPath <プロジェクト> \
+    -runTests -testPlatform EditMode -testResults results.xml -logFile unity.log   # 2026-10-07 に 28 件すべて成功（エディタは arm64）
+```
+- メモリの不具合は ASan で確かめられる：`-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined"`（リンカーフラグにも同じものを付ける）。
 
 ## コードの書き方
 
@@ -107,9 +126,28 @@ echo y | npx vsce package                  # LICENSE が無いので確認に y 
 | 段階1：コンパイラ・CLI | 完了（push 済み） |
 | 段階1：`atsc gen`（C++ / HTML / C#） | 完了 |
 | 段階2：VS Code 拡張 | 完了（push 済み、テスト 58 件）。デバッガ（DAP）は VM 側のデバッグサーバーと一緒に作る |
-| 段階2：Unity 統合 | C# ラッパーと PlayerLoop 更新、ScriptedImporter、エディタからの atsc gen は実装済み（Windows x64。EditMode テスト 28 件成功、ラッパーは IL2CPP プレイヤーでも確認）。他プラットフォームのプラグイン・atsc、デバッガ接続は未着手 |
+| 段階2：Unity 統合 | C# ラッパーと PlayerLoop 更新、ScriptedImporter、エディタからの atsc gen は実装済み（Windows x64。EditMode テスト 28 件成功、ラッパーは IL2CPP プレイヤーでも確認）。macOS 用の atsc とプラグイン（.bundle、ユニバーサル）も実装済み（EditMode テスト 28 件成功。Intel 版エディタ・macOS プレイヤーは未確認）。Android / iOS / 家庭用機のプラグイン、デバッガ接続は未着手 |
 | 段階2：UE 統合 | 未着手 |
 | 段階3：家庭用機・モバイル対応、ノードエディタ | 未着手 |
+
+## 直近の作業（2026-10-07、macOS 対応）
+
+- macOS 用の atsc と Unity プラグイン `atomscript.bundle` を追加（CMake の `atomscript_bundle`、arm64 + x86_64 のユニバーサル、最小 macOS 11.0）。
+  Unity 6000.0.67f1（Apple Silicon）で EditMode テスト 28 件成功、コアのテスト 58 件は arm64・x86_64（Rosetta）とも成功。
+- ASan / UBSan で見つけた不具合を修正：
+  - テストで `Env` を `Host` より先に宣言していたため、VM の破棄時のキャンセル通知が破棄済みの `Host` に書き込んでいた（MSVC ではたまたま表に出ていなかった）。
+    VM の破棄時にホストへ通知が来るので、ホスト側のオブジェクトは `Env` より先に宣言する。
+  - コンパイラが型エラーの印に `(ats_type)0xFF`（列挙型の範囲外＝未定義動作）を使っていた。`TypeRef::error` に変更。
+- プラグインの .meta を `unity/plugin-meta/` に移し、パッケージの `Runtime/Plugins/` をビルド生成物にした
+  （バイナリの無いプラットフォームで Unity が .meta を消すため）。
+
+## 次にやること（優先順）
+
+1. **Windows でビルドし直して確認する**：`unity/plugin-meta` から .meta がコピーされること、EditMode テスト 28 件、
+   コアのテスト 58 件（Debug / Release）、/W4 で警告ゼロ（`TypeRef` とテストの変更が入っている）。
+   既存の Unity プロジェクトのパッケージ内に古い `Runtime/Plugins` が残っていても、ビルドで上書きされるので問題ない想定
+2. macOS の残り：Intel 版エディタ、macOS プレイヤー（Mono / IL2CPP）での確認、配布用の署名・公証
+3. 下の「次の作業の候補」から（Android / iOS のプラグインなど）
 
 ## ユーザーへの確認待ち
 
@@ -122,7 +160,8 @@ echo y | npx vsce package                  # LICENSE が無いので確認に y 
 ## 次の作業の候補
 
 - Unity パッケージの続き：`.ats` のアイコン、
-  macOS 用の atsc とプラグイン、Android / iOS / 家庭用機のプラグイン、PlayMode（実機）で動くテスト。
+  macOS の Intel 版エディタ・プレイヤー（Mono / IL2CPP）での確認、配布用の署名・公証（今は ad-hoc 署名のみ）、
+  Android / iOS / 家庭用機のプラグイン、PlayMode（実機）で動くテスト。
   インポートは 1 ファイル 0.5〜0.8 秒（atsc の起動込み）。数が増えて遅ければ、まとめてコンパイルする方法を考える
 - `gen` の改善候補：`Commands` をカテゴリごとに分割できるようにする、UE 向け（UObject / Blueprint）の生成
 - `atsc fmt` / `strings` / `refs`

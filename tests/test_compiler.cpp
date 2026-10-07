@@ -181,7 +181,7 @@ bool ExpectError( const Manifest& m, const std::string& src, const std::string& 
 //=========================================================================
 TEST( CompileExpressionsAndControlFlow )
 {
-	Env env; Host host;
+	Host host; Env env;
 	Manifest m = LoadManifest();
 	Setup( env, host, m );
 
@@ -238,7 +238,7 @@ event OnStart() {
 
 TEST( CompileSwitchEnumsAndVars )
 {
-	Env env; Host host;
+	Host host; Env env;
 	Manifest m = LoadManifest();
 	Setup( env, host, m );
 
@@ -284,7 +284,7 @@ event OnReset() {
 
 TEST( CompileAwaitParallelAndRace )
 {
-	Env env; Host host;
+	Host host; Env env;
 	Manifest m = LoadManifest();
 	Setup( env, host, m );
 	host.answers = { 1, 0 };
@@ -325,7 +325,7 @@ event OnTalk(target: handle) {
 
 TEST( CompileFireBetweenScripts )
 {
-	Env env; Host host;
+	Host host; Env env;
 	Manifest m = LoadManifest();
 	Setup( env, host, m );
 
@@ -352,7 +352,7 @@ event OnSignal(v: int) { Report(v * 10) }
 
 TEST( CompileSampleFiles )
 {
-	Env env; Host host;
+	Host host; Env env;
 	Manifest m;
 	Diagnostics d;
 	std::string dir = ATS_SAMPLES_DIR;

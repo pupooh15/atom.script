@@ -3,5 +3,6 @@
 /.vs/
 *.user
 *.atsb
-/unity/*/Runtime/Plugins/**/*.dll
+/unity/*/Runtime/Plugins/
+/unity/*/Runtime/Plugins.meta
 /unity/*/Editor/Tools~/

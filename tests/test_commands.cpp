@@ -76,8 +76,8 @@ void RegCommand( Env& env, const char* name, ats_command_fn fn, Host* h,
 //=========================================================================
 TEST( PendingCommandWaitsForCompletion )
 {
-	Env env;
 	Host host;
+	Env env;
 	env.RegisterReporters();
 	RegCommand( env, "Wait", PendingFn, &host );
 	env.MakeVm();
@@ -111,8 +111,8 @@ TEST( PendingCommandWaitsForCompletion )
 
 TEST( CompleteInsideHandler )
 {
-	Env env;
 	Host host;
+	Env env;
 	host.completeNow = true;
 	env.RegisterReporters();
 	RegCommand( env, "Wait", PendingFn, &host );
@@ -138,8 +138,8 @@ TEST( CompleteInsideHandler )
 //=========================================================================
 TEST( RunningCommandIsCalledEveryUpdate )
 {
-	Env env;
 	Host host;
+	Env env;
 	host.runningUntil = 2;
 	env.RegisterReporters();
 	RegCommand( env, "Fade", RunningFn, &host );
@@ -169,8 +169,8 @@ TEST( RunningCommandIsCalledEveryUpdate )
 //=========================================================================
 TEST( FailedCommandAbortsFiber )
 {
-	Env env;
 	Host host;
+	Env env;
 	env.RegisterReporters();
 	RegCommand( env, "Broken", FailFn, &host );
 	RegCommand( env, "Wait", PendingFn, &host );
@@ -238,8 +238,8 @@ TEST( FailedQueryAbortsFiber )
 //=========================================================================
 TEST( ChannelSerializesCommands )
 {
-	Env env;
 	Host host;
+	Env env;
 	env.RegisterReporters();
 	RegCommand( env, "ShowMessage", PendingFn, &host, "message" );
 	env.MakeVm();
@@ -275,8 +275,8 @@ TEST( ChannelSerializesCommands )
 
 TEST( ChannelReleasedWhenOwnerAborted )
 {
-	Env env;
 	Host host;
+	Env env;
 	RegCommand( env, "ShowMessage", PendingFn, &host, "message", CancelFn );
 	env.MakeVm();
 
@@ -310,8 +310,8 @@ TEST( ChannelReleasedWhenOwnerAborted )
 //=========================================================================
 TEST( AbortFromInsideHandler )
 {
-	Env env;
 	Host host;
+	Env env;
 	env.RegisterReporters();
 	RegCommand( env, "Quit", AbortSelfFn, &host );
 	env.MakeVm();

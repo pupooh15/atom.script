@@ -12,7 +12,7 @@ LT（DS）のスクリプトマネージャを参考に新規設計したもの�
 | 書き出しライブラリ（`tools/writer`） | 実装済み |
 | コンパイラ `atsc`（`.ats` → `.atsb`） | 実装済み（[docs/language.md](docs/language.md)）。`gen` は C++・C#（Unity）・HTML に対応。`fmt` / `strings` / `refs` は未実装 |
 | VS Code 拡張（`editors/vscode`） | 実装済み。構文ハイライト・スニペット・言語サーバー（`atsc lsp`）によるエラー表示・補完・ホバー・定義へ移動・引数ヒント・アウトライン |
-| Unity パッケージ（`unity/com.pupooh15.atomscript`） | C# ラッパー（P/Invoke・SafeHandle・`Awaitable`）、PlayerLoop での更新、`.ats` の ScriptedImporter、エディタからの C# 生成を実装済み。Windows x64 のみ |
+| Unity パッケージ（`unity/com.pupooh15.atomscript`） | C# ラッパー（P/Invoke・SafeHandle・`Awaitable`）、PlayerLoop での更新、`.ats` の ScriptedImporter、エディタからの C# 生成を実装済み。Windows x64・macOS（ユニバーサル） |
 | UE 統合、デバッガ | 未着手 |
 
 ## ディレクトリ
@@ -25,6 +25,7 @@ tools/writer/                    .atsb の書き出し（ツール側。STL 可�
 tools/compiler/                  コンパイラ（マニフェスト・字句／構文解析・意味検査・コード生成）と atsc
 editors/vscode/                  VS Code 拡張（TypeScript。解析は atsc lsp に任せる）
 unity/com.pupooh15.atomscript/   Unity パッケージ（C# ラッパーとテスト）
+unity/plugin-meta/               Unity 用ネイティブプラグインの .meta（ビルドでパッケージにコピーする）
 samples/                         サンプルのマニフェストとスクリプト
 tests/                           テスト
 docs/spec.md                     仕様書
@@ -37,10 +38,21 @@ docs/bytecode.md                 バイナリ形式・命令・セーブ形式�
 CMake 3.16 以降と C++17 コンパイラ。
 
 ```bash
+# Windows
 cmake -S . -B build -G "Visual Studio 16 2019" -A x64
 cmake --build build --config Release
 build/Release/atomscript_tests.exe
+
+# macOS（arm64 と x86_64 のユニバーサル、macOS 11.0 以上）
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+build/atomscript_tests
 ```
+
+ビルドすると Unity パッケージにエディタ用のネイティブプラグインと atsc がコピーされる
+（Windows：`Runtime/Plugins/Windows/x86_64/atomscript.dll`・`Editor/Tools~/win-x64/atsc.exe`、
+macOS：`Runtime/Plugins/macOS/atomscript.bundle`・`Editor/Tools~/osx/atsc`）。
+プラグインの `.meta` は `unity/plugin-meta` からコピーする。
 
 | オプション | 既定 | 内容 |
 | --- | --- | --- |
@@ -52,6 +64,7 @@ build/Release/atomscript_tests.exe
 
 - `atomscript_static`：静的ライブラリ（iOS・家庭用機・テスト用。`ATS_STATIC` を定義して使う）
 - `atomscript`：共有ライブラリ（Windows・macOS・Android・Linux）
+- `atomscript_bundle`：macOS の Unity 用プラグイン `atomscript.bundle`（macOS のみ）
 - `atomscript_writer`：書き出しライブラリ
 - `atomscript_compiler`：コンパイラ本体（ライブラリ）
 - `atsc`：コンパイラ CLI

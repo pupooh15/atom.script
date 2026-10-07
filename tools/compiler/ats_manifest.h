@@ -19,8 +19,9 @@ namespace compiler {
 struct TypeRef {
 	ats_type	base = ATS_TYPE_VOID;
 	std::string	enumName;
+	bool		error = false;		// 型エラー（コンパイラが連鎖して報告しないための印）
 
-	bool operator==( const TypeRef& o ) const { return base == o.base && enumName == o.enumName; }
+	bool operator==( const TypeRef& o ) const { return base == o.base && enumName == o.enumName && error == o.error; }
 	bool operator!=( const TypeRef& o ) const { return !(*this == o); }
 	bool IsVoid() const		{ return base == ATS_TYPE_VOID; }
 	std::string Name() const;

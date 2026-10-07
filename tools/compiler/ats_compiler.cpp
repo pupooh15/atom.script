@@ -29,9 +29,10 @@ const TypeRef kBool  = MakeType( ATS_TYPE_BOOL );
 const TypeRef kInt   = MakeType( ATS_TYPE_INT );
 const TypeRef kFloat = MakeType( ATS_TYPE_FLOAT );
 const TypeRef kStr   = MakeType( ATS_TYPE_STRING );
-const TypeRef kErr   = MakeType( (ats_type)0xFF );	// エラー（連鎖して報告しないための印）
+TypeRef MakeErrType() { TypeRef r; r.error = true; return r; }
+const TypeRef kErr   = MakeErrType();	// エラー（連鎖して報告しないための印。ats_type の範囲外の値は使わない）
 
-bool IsErr( const TypeRef& t )		{ return t.base == (ats_type)0xFF; }
+bool IsErr( const TypeRef& t )		{ return t.error; }
 bool IsNumeric( const TypeRef& t )	{ return t.base == ATS_TYPE_INT || t.base == ATS_TYPE_FLOAT; }
 
 // source を target に代入できるか（int → float は暗黙に変換する）
