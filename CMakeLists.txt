@@ -184,7 +184,7 @@ if( EXISTS "${ATS_UNITY_PACKAGE}" )
 	add_custom_command(
 		OUTPUT "${ATS_UNITY_RUNTIME_TESTS}/Generated/SampleRpgBytecode.g.cs"
 		COMMAND ${CMAKE_COMMAND} -DINPUT=${ATS_UNITY_TESTS}/Data~/SampleRpg.atsb.bytes -DOUTPUT=${ATS_UNITY_RUNTIME_TESTS}/Generated/SampleRpgBytecode.g.cs
-			-DNAMESPACE=AtomScript.Tests -DCLASS=SampleRpgBytecode "-DSOURCE=samples/merchant.ats をコンパイルした .atsb" -P "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/embed_csharp_bytes.cmake"
+			-DNAMESPACE=AtomScript.Tests -DCLASS=SampleRpgBytecode -DSOURCE=samples/merchant.ats -P "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/embed_csharp_bytes.cmake"
 		DEPENDS "${ATS_UNITY_TESTS}/Data~/SampleRpg.atsb.bytes" "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/embed_csharp_bytes.cmake"
 		COMMENT "Unity テスト用アセット: SampleRpgBytecode.g.cs"
 	)

@@ -90,7 +90,8 @@ echo y | npx vsce package                  # LICENSE が無いので確認に y 
 - IL2CPP（StandaloneWindows64）で確かめるときは `-testPlatform StandaloneWindows64 -testSettingsFile <{"scriptingBackend":"IL2CPP"}>`。
   プロジェクトのパスが深いと出力が MAX_PATH（260 文字）を超え、プレイヤーが「Failed to initialize IL2CPP」で止まる（エディタは待ち続ける）。
   スクラッチ領域は深すぎるので、短いパス（例 `E:\tmp\…`）に一時プロジェクトを作る。
-  （2026-10-07 に Assets へ一時的に作ったテストで 1 件成功。今はパッケージの Tests/Runtime にあるので、Windows のプレイヤーでは未実施）
+  Mono のプレイヤーも同じで、深いパスだと「Unable to load mono library」で止まる。Mono も短いパスで動かす。
+  2026-10-07 に Tests/Runtime の 2 件を Windows プレイヤー（x64）の Mono・IL2CPP とも成功。
 - Unity はパッケージに .meta を書き出す。新しいファイルを足したら .meta もコミットする（プラグインの .meta だけは unity/plugin-meta に置く）。
 - 構文ハイライトの正規表現は vscode-textmate + vscode-oniguruma で実際に字句分けして確かめた（スクラッチ領域で実施。リポジトリには入れていない）。
 
@@ -154,12 +155,14 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
 - プラグインの .meta を `unity/plugin-meta/` に移し、パッケージの `Runtime/Plugins/` をビルド生成物にした
   （バイナリの無いプラットフォームで Unity が .meta を消すため）。
 
-## 次にやること（優先順）
+## Windows での確認（2026-10-07、macOS 対応の後）
 
-1. **Windows でビルドし直して確認する**：`unity/plugin-meta` から .meta がコピーされること、EditMode テスト 28 件、PlayMode・Windows プレイヤー（Mono / IL2CPP）のテスト 2 件、
-   コアのテスト 58 件（Debug / Release）、/W4 で警告ゼロ（`TypeRef` とテストの変更が入っている）。
-   既存の Unity プロジェクトのパッケージ内に古い `Runtime/Plugins` が残っていても、ビルドで上書きされるので問題ない想定
-2. 下の「次の作業の候補」から（Android / iOS のプラグインなど）
+- コアのテスト 58 件（Debug / Release、/W4 で警告ゼロ）、Unity の EditMode 28 件・PlayMode 2 件・Windows プレイヤー（Mono / IL2CPP）各 2 件すべて成功。
+  `unity/plugin-meta` から .meta がコピーされることも確認。
+- `tools/cmake/embed_csharp_bytes.cmake` を Windows で動かすと生成物が変わっていたのを修正：
+  `file( WRITE )` が CRLF で書く → `configure_file( … NEWLINE_STYLE UNIX )` で LF に揃える。
+  `-DSOURCE=` の日本語が化ける（Visual Studio のビルドはカスタムコマンドを cp932 のバッチで実行する）→ 引数は ASCII にし、日本語はスクリプト側で組み立てる。
+  -P で動かすスクリプトには `cmake_minimum_required` を書く（無いとポリシー警告が出る）。
 
 ## ユーザーへの確認待ち
 
