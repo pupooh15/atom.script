@@ -284,7 +284,7 @@ std::string GenerateCpp( const Manifest& m, const GenOptions& opt )
 		L( "" );
 	}
 	L( "\t// 待機中のコマンドが中断されたとき（ファイバの中断・race・VM の破棄）" );
-	L( "\tvirtual void OnCancel( ats_call_token token ) { (void)token; }" );
+	L( "\tvirtual void OnCancel( ats_vm* vm, ats_call_token token ) { (void)vm; (void)token; }" );
 	L( "};" );
 	L( "" );
 
@@ -316,7 +316,7 @@ std::string GenerateCpp( const Manifest& m, const GenOptions& opt )
 		}
 		L( "\t}" );
 	}
-	L( "\tinline void ATS_CALL Cancel( ats_call_token token, void* user ) { static_cast<Commands*>( user )->OnCancel( token ); }" );
+	L( "\tinline void ATS_CALL Cancel( ats_vm* vm, ats_call_token token, void* user ) { static_cast<Commands*>( user )->OnCancel( vm, token ); }" );
 	L( "}" );
 	L( "" );
 
@@ -377,6 +377,338 @@ std::string GenerateCpp( const Manifest& m, const GenOptions& opt )
 	L( "}" );
 	L( "" );
 	L( "}\t// namespace " + ns );
+	return o;
+}
+
+//=========================================================================
+// C#（Unity パッケージの AtomScript 名前空間の API を使う）
+//=========================================================================
+namespace {
+
+const char* const kCsKeywords[] = {
+	"abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked", "class", "const",
+	"continue", "decimal", "default", "delegate", "do", "double", "else", "enum", "event", "explicit", "extern",
+	"false", "finally", "fixed", "float", "for", "foreach", "goto", "if", "implicit", "in", "int", "interface",
+	"internal", "is", "lock", "long", "namespace", "new", "null", "object", "operator", "out", "override",
+	"params", "private", "protected", "public", "readonly", "ref", "return", "sbyte", "sealed", "short",
+	"sizeof", "stackalloc", "static", "string", "struct", "switch", "this", "throw", "true", "try", "typeof",
+	"uint", "ulong", "unchecked", "unsafe", "ushort", "using", "virtual", "void", "volatile", "while",
+};
+
+// 生成コードの引数名・ローカル名と衝突させない名前
+const char* const kCsReserved[] = { "ct", "call", "impl", "rt", "vm", "program", "count" };
+
+// C# の識別子にする（使えない文字は _、予約語は @ を付ける）
+std::string CsIdent( const std::string& s )
+{
+	std::string o;
+	for( unsigned char c : s ){
+		if( (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c >= 0x80 ) o += (char)c;
+		else o += '_';
+	}
+	if( o.empty() || (o[0] >= '0' && o[0] <= '9') ) o = "_" + o;
+	for( const char* k : kCsKeywords ) if( o == k ) return "@" + o;
+	return o;
+}
+
+// snake_case → PascalCase（すでに PascalCase ならそのまま）
+std::string Pascal( const std::string& s )
+{
+	std::string o;
+	bool up = true;
+	for( char c : s ){
+		if( c == '_' || c == '-' || c == '.' || c == ' ' ){ up = true; continue; }
+		o += up && c >= 'a' && c <= 'z' ? (char)(c - 'a' + 'A') : c;
+		up = false;
+	}
+	return CsIdent( o.empty() ? s : o );
+}
+
+// snake_case → camelCase（引数名）
+std::string Camel( const std::string& s )
+{
+	std::string p = Pascal( s );
+	if( p[0] == '@' ) p = p.substr( 1 );
+	if( p[0] >= 'A' && p[0] <= 'Z' ) p[0] = (char)(p[0] - 'A' + 'a');
+	for( const char* k : kCsReserved ) if( p == k ) return p + "_";
+	return CsIdent( p );
+}
+
+std::string CsStr( const std::string& s ) { return CppStr( s ); }
+
+std::string CsType( const TypeRef& t )
+{
+	switch( t.base ){
+	case ATS_TYPE_BOOL:		return "bool";
+	case ATS_TYPE_INT:		return "int";
+	case ATS_TYPE_FLOAT:	return "float";
+	case ATS_TYPE_STRING:	return "string";
+	case ATS_TYPE_ENUM:		return CsIdent( t.enumName );
+	case ATS_TYPE_HANDLE:	return "AtsHandle";
+	default:				return "void";
+	}
+}
+
+const char* CsTypeConst( const TypeRef& t )
+{
+	switch( t.base ){
+	case ATS_TYPE_BOOL:		return "AtsType.Bool";
+	case ATS_TYPE_INT:		return "AtsType.Int";
+	case ATS_TYPE_FLOAT:	return "AtsType.Float";
+	case ATS_TYPE_STRING:	return "AtsType.String";
+	case ATS_TYPE_ENUM:		return "AtsType.Enum";
+	case ATS_TYPE_HANDLE:	return "AtsType.Handle";
+	default:				return "AtsType.Void";
+	}
+}
+
+// AtsCall から引数を取り出す式
+std::string CsArgExpr( const TypeRef& t, size_t i )
+{
+	std::string idx = std::to_string( i );
+	switch( t.base ){
+	case ATS_TYPE_BOOL:		return "call.ArgBool( " + idx + " )";
+	case ATS_TYPE_INT:		return "call.ArgInt( " + idx + " )";
+	case ATS_TYPE_FLOAT:	return "call.ArgFloat( " + idx + " )";
+	case ATS_TYPE_STRING:	return "call.ArgString( " + idx + " )";
+	case ATS_TYPE_ENUM:		return "(" + CsIdent( t.enumName ) + ")call.ArgInt( " + idx + " )";
+	case ATS_TYPE_HANDLE:	return "call.ArgHandle( " + idx + " )";
+	default:				return "";
+	}
+}
+
+// 値 → AtsValue の式
+std::string CsToValue( const TypeRef& t, const std::string& v )
+{
+	switch( t.base ){
+	case ATS_TYPE_BOOL:		return "AtsValue.Bool( " + v + " )";
+	case ATS_TYPE_INT:		return "AtsValue.Int( " + v + " )";
+	case ATS_TYPE_FLOAT:	return "AtsValue.Float( " + v + " )";
+	case ATS_TYPE_STRING:	return "AtsValue.String( " + v + " )";
+	case ATS_TYPE_ENUM:		return "AtsValue.Enum( (int)" + v + " )";
+	case ATS_TYPE_HANDLE:	return "AtsValue.Handle( " + v + " )";
+	default:				return "AtsValue.Void";
+	}
+}
+
+std::string CsParamList( const std::vector<MParam>& ps )
+{
+	std::string o;
+	for( size_t i = 0; i < ps.size(); ++i ) o += (i ? ", " : "") + CsType( ps[i].type ) + " " + Camel( ps[i].name );
+	return o;
+}
+
+std::string CsArgList( const std::vector<MParam>& ps )
+{
+	std::string o;
+	for( size_t i = 0; i < ps.size(); ++i ) o += (i ? ", " : "") + CsArgExpr( ps[i].type, i );
+	return o;
+}
+
+std::string XmlEsc( const std::string& s )
+{
+	std::string o;
+	for( char c : s ){
+		switch( c ){
+		case '<':	o += "&lt;"; break;
+		case '>':	o += "&gt;"; break;
+		case '&':	o += "&amp;"; break;
+		default:	o += c;
+		}
+	}
+	return o;
+}
+
+// 初期値の AtsValue の式
+std::string CsInit( const MVar& v )
+{
+	if( !v.init.present ) return "AtsValue.Void";
+	switch( v.type.base ){
+	case ATS_TYPE_BOOL:		return std::string( "AtsValue.Bool( " ) + (v.init.text == "true" ? "true" : "false") + " )";
+	case ATS_TYPE_INT:		return "AtsValue.Int( " + v.init.text + " )";
+	case ATS_TYPE_FLOAT: {
+		std::string f = v.init.text;
+		if( f.find_first_of( ".eE" ) == std::string::npos ) f += ".0";
+		return "AtsValue.Float( " + f + "f )";
+	}
+	case ATS_TYPE_STRING:	return "AtsValue.String( " + CsStr( v.init.text ) + " )";
+	case ATS_TYPE_ENUM: {
+		std::string name = v.init.text;
+		size_t dot = name.find( '.' );
+		if( dot != std::string::npos ) name = name.substr( dot + 1 );
+		return "AtsValue.Enum( (int)" + CsIdent( v.type.enumName ) + "." + CsIdent( name ) + " )";
+	}
+	case ATS_TYPE_HANDLE:	return "AtsValue.Handle( default )";
+	default:				return "AtsValue.Void";
+	}
+}
+
+}	// namespace
+
+std::string GenerateCSharp( const Manifest& m, const GenOptions& opt )
+{
+	const std::string project = m.project.empty() ? std::string( "AtomScriptProject" ) : Pascal( m.project );
+	std::string ns = opt.nameSpace;
+	if( ns.empty() ) ns = project;
+	else {
+		// "a::b" も "a.b" も受け付ける
+		std::string out, part;
+		for( size_t i = 0; i <= ns.size(); ++i ){
+			bool sep = i == ns.size() || ns[i] == '.' || (ns[i] == ':' && i + 1 < ns.size() && ns[i+1] == ':');
+			if( sep ){
+				if( !part.empty() ){ if( !out.empty() ) out += "."; out += CsIdent( part ); }
+				part.clear();
+				if( i < ns.size() && ns[i] == ':' ) ++i;
+			} else {
+				part += ns[i];
+			}
+		}
+		ns = out;
+	}
+	const std::string iface = "I" + project + "Commands";
+
+	std::string o;
+	auto L = [&]( const std::string& s ) { o += s; o += "\n"; };
+
+	L( "// <auto-generated>" );
+	L( "// AtomScript 登録コード（atsc gen が " + (opt.source.empty() ? std::string( "マニフェスト" ) : opt.source) + " から生成）" );
+	L( "// 手で編集しない。マニフェストを変えたら atsc gen で作り直す。" );
+	L( "// </auto-generated>" );
+	L( "using System.Threading;" );
+	L( "using AtomScript;" );
+	L( "using UnityEngine;" );
+	L( "" );
+	L( "namespace " + ns );
+	L( "{" );
+
+	// enum ---------------------------------------------------------------
+	for( const MEnum& e : m.enums ){
+		if( !e.display.empty() ) L( "\t/// <summary>" + XmlEsc( e.display ) + "</summary>" );
+		L( "\tpublic enum " + CsIdent( e.name ) + " : int" );
+		L( "\t{" );
+		for( const auto& v : e.values ) L( "\t\t" + CsIdent( v.first ) + " = " + std::to_string( v.second ) + "," );
+		L( "\t}" );
+		L( "" );
+	}
+
+	// 共有変数 -----------------------------------------------------------
+	if( !m.vars.empty() ){
+		L( "\t/// <summary>共有変数（ScriptVM.Get / Set に渡す）</summary>" );
+		L( "\tpublic static class Vars" );
+		L( "\t{" );
+		for( const std::string& bank : m.banks ){
+			L( "\t\tpublic static class " + Pascal( bank ) );
+			L( "\t\t{" );
+			for( const MVar& v : m.vars ){
+				if( v.bank != bank ) continue;
+				L( "\t\t\t/// <summary>" + XmlEsc( v.bank + "." + v.name ) + "：" + v.type.Name() +
+				   (v.scope == ATS_SCOPE_PERSISTENT ? "（セーブ対象）" : "（セーブしない）") + "</summary>" );
+				L( "\t\t\tpublic static readonly VarId<" + CsType( v.type ) + "> " + Pascal( v.name ) + " = new VarId<" + CsType( v.type ) + ">( " +
+				   std::to_string( v.id ) + " );" );
+			}
+			L( "\t\t}" );
+		}
+		L( "\t}" );
+		L( "" );
+	}
+
+	// イベント -----------------------------------------------------------
+	if( !m.events.empty() ){
+		L( "\t/// <summary>イベントの発火</summary>" );
+		L( "\tpublic static class Events" );
+		L( "\t{" );
+		for( const MEvent& e : m.events ){
+			std::string n = CsIdent( e.name );
+			std::string params, args;
+			for( size_t i = 0; i < e.params.size(); ++i ){
+				params += ", " + CsType( e.params[i].type ) + " " + Camel( e.params[i].name );
+				args += (i ? ", " : "") + CsToValue( e.params[i].type, Camel( e.params[i].name ) );
+			}
+			std::string arr = e.params.empty() ? "null" : "new[] { " + args + " }";
+			L( "\t\tpublic const string " + n + " = " + CsStr( e.name ) + ";" );
+			L( "\t\tpublic static FiberId Fire" + n + "( ScriptVM vm, ScriptProgram program" + params + " )" );
+			L( "\t\t\t=> vm.FireEvent( program, " + n + ", " + arr + " );" );
+			L( "\t\tpublic static int Broadcast" + n + "( ScriptVM vm" + params + " )" );
+			L( "\t\t\t=> vm.BroadcastEvent( " + n + ", " + arr + " );" );
+		}
+		L( "\t}" );
+		L( "" );
+	}
+
+	// 実装インターフェイス ---------------------------------------------
+	L( "\t/// <summary>" );
+	L( "\t/// コマンド・クエリの実装。待機ありコマンドは Awaitable を返す（終わると VM に完了が伝わる）。" );
+	L( "\t/// ファイバが中断されると ct がキャンセルされる。例外を投げるとコマンドの失敗になる。" );
+	L( "\t/// </summary>" );
+	L( "\tpublic interface " + iface );
+	L( "\t{" );
+	for( size_t ci = 0; ci < m.commands.size(); ++ci ){
+		const MCommand& c = m.commands[ci];
+		if( ci ) L( "" );
+		L( "\t\t/// <summary>" + XmlEsc( Describe( c ) ) + (c.description.empty() ? "" : "。" + XmlEsc( c.description )) + "</summary>" );
+		if( c.deprecated ) L( "\t\t[System.Obsolete]" );
+		std::string params = CsParamList( c.params );
+		if( !c.query && c.latent ){
+			std::string ret = c.ret.IsVoid() ? "Awaitable" : "Awaitable<" + CsType( c.ret ) + ">";
+			L( "\t\t" + ret + " " + CsIdent( c.name ) + "( " + params + (params.empty() ? "" : ", ") + "CancellationToken ct );" );
+		} else {
+			L( "\t\t" + CsType( c.ret ) + " " + CsIdent( c.name ) + (params.empty() ? "();" : "( " + params + " );") );
+		}
+	}
+	L( "\t}" );
+	L( "" );
+
+	// 登録 ---------------------------------------------------------------
+	L( "\t/// <summary>ランタイムへの登録（ランタイムを作った直後に 1 回呼ぶ）</summary>" );
+	L( "\tpublic static class Registration" );
+	L( "\t{" );
+	L( "\t\t/// <summary>生成元のマニフェストのハッシュ（.atsb のヘッダーと比べられる）</summary>" );
+	{
+		char b[32];
+		snprintf( b, sizeof(b), "0x%016llxUL", (unsigned long long)m.hash );
+		L( "\t\tpublic const ulong ManifestHash = " + std::string( b ) + ";" );
+	}
+	L( "" );
+	L( "\t\t/// <summary>共有変数とコマンド・クエリをまとめて登録する</summary>" );
+	L( "\t\tpublic static void Register( ScriptRuntime rt, " + iface + " impl )" );
+	L( "\t\t{" );
+	L( "\t\t\tDefineVars( rt );" );
+	L( "\t\t\tRegisterCommands( rt, impl );" );
+	L( "\t\t}" );
+	L( "" );
+	L( "\t\tpublic static void RegisterCommands( ScriptRuntime rt, " + iface + " impl )" );
+	L( "\t\t{" );
+	for( const MCommand& c : m.commands ){
+		std::string n = CsIdent( c.name );
+		char hash[16];
+		snprintf( hash, sizeof(hash), "0x%08xu", c.SignatureHash() );
+		std::string args = CsArgList( c.params );
+		std::string invoke = "impl." + n + (args.empty() ? "()" : "( " + args + " )");
+		if( c.query ){
+			L( "\t\t\trt.RegisterQuery( " + CsStr( c.name ) + ", " + hash + "," );
+			L( "\t\t\t\tcall => call.SetResult( " + CsToValue( c.ret, invoke ) + " ) );" );
+		} else if( c.latent ){
+			std::string full = args + (args.empty() ? "" : ", ") + "call.CancellationToken";
+			std::string conv = c.ret.IsVoid() ? "" : ", v => " + CsToValue( c.ret, "v" );
+			L( "\t\t\trt.RegisterCommand( " + CsStr( c.name ) + ", " + hash + ", " + (c.channel.empty() ? "null" : CsStr( c.channel )) + "," );
+			L( "\t\t\t\tcall => call.Await( impl." + n + "( " + full + " )" + conv + " ) );" );
+		} else {
+			L( "\t\t\trt.RegisterCommand( " + CsStr( c.name ) + ", " + hash + ", " + (c.channel.empty() ? "null" : CsStr( c.channel )) + "," );
+			if( c.ret.IsVoid() ) L( "\t\t\t\tcall => { " + invoke + "; return AtsStatus.Done; } );" );
+			else L( "\t\t\t\tcall => { call.SetResult( " + CsToValue( c.ret, invoke ) + " ); return AtsStatus.Done; } );" );
+		}
+	}
+	L( "\t\t}" );
+	L( "" );
+	L( "\t\tpublic static void DefineVars( ScriptRuntime rt )" );
+	L( "\t\t{" );
+	for( const MVar& v : m.vars ){
+		L( "\t\t\trt.DefineVar( " + std::to_string( v.id ) + ", " + CsStr( v.bank + "." + v.name ) + ", " + CsTypeConst( v.type ) + ", " +
+		   (v.scope == ATS_SCOPE_PERSISTENT ? "AtsVarScope.Persistent" : "AtsVarScope.Session") + ", " + CsInit( v ) + " );" );
+	}
+	L( "\t\t}" );
+	L( "\t}" );
+	L( "}" );
 	return o;
 }
 

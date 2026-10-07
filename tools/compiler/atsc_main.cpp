@@ -29,7 +29,7 @@ const char* kUsage =
 	"  atsc compile  <file.ats>... -m <manifest> [-o <out.atsb | dir>] [--json] [--no-debug]\n"
 	"  atsc validate <file.ats>... -m <manifest> [--json]\n"
 	"  atsc disasm   <file.atsb>\n"
-	"  atsc gen      -m <manifest> --lang <cpp | html> [-o <file>] [--namespace <ns>]\n"
+	"  atsc gen      -m <manifest> --lang <cpp | csharp | html> [-o <file>] [--namespace <ns>]\n"
 	"  atsc lsp      （言語サーバー。標準入出力で通信する）\n"
 	"  atsc --version\n";
 
@@ -120,14 +120,14 @@ int main( int argc, char** argv )
 		return Disasm( inputs[0] );
 	}
 	if( cmd == "gen" ){
-		if( manifestPath.empty() || !inputs.empty() || (lang != "cpp" && lang != "html") ){ std::fputs( kUsage, stderr ); return 2; }
+		if( manifestPath.empty() || !inputs.empty() || (lang != "cpp" && lang != "csharp" && lang != "html") ){ std::fputs( kUsage, stderr ); return 2; }
 		Diagnostics diag;
 		Manifest manifest;
 		if( !manifest.Load( manifestPath, diag ) ){ Print( diag, json ); return 1; }
 		GenOptions opt;
 		opt.nameSpace = nameSpace;
 		opt.source    = FileName( manifestPath );
-		std::string text = lang == "cpp" ? GenerateCpp( manifest, opt ) : GenerateHtml( manifest, opt );
+		std::string text = lang == "cpp" ? GenerateCpp( manifest, opt ) : lang == "csharp" ? GenerateCSharp( manifest, opt ) : GenerateHtml( manifest, opt );
 		if( output.empty() ){
 			std::fputs( text.c_str(), stdout );
 		} else if( !WriteFile( output, std::vector<uint8_t>( text.begin(), text.end() ) ) ){

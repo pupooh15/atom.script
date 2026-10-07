@@ -21,7 +21,7 @@ ats_status ATS_CALL WaitFn( ats_call* call, void* user )
 	return ATS_PENDING;
 }
 
-void ATS_CALL CancelFn( ats_call_token t, void* user )
+void ATS_CALL CancelFn( ats_vm*, ats_call_token t, void* user )
 {
 	static_cast<Pending*>( user )->cancelled.push_back( t );
 }

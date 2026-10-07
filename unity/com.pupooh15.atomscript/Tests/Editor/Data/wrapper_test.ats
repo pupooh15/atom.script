@@ -1,0 +1,41 @@
+script "test/wrapper"                // C# ラッパーのテスト用
+
+var talks: int = 0
+
+// 待機ありコマンド（結果なし・int・string）とクエリ
+event Start() {
+    Log("start")
+    g.counter = Twice(21)
+    await Wait("a")
+    Log("after a")
+    g.counter = await Ask(Mood.Angry)
+    g.label = await AskName()
+    g.flag = true
+    Log("done")
+}
+
+// handle と string の引数、race による中断
+event Talk(who: handle, line: string) {
+    talks += 1
+    tmp.last = who
+    Log(NameOf(who))
+    Log(line)
+    race {
+        branch { await Wait("long") }
+        branch { wait 0.5 }
+    }
+    Log("raced")
+}
+
+// 例外を投げるコマンド（ファイバが中断される）
+event Explode() {
+    Log("before")
+    Boom()
+    Log("after")
+}
+
+// チャンネル付きのコマンド（同じチャンネルは 1 つずつ実行される）
+event Chat(text: string) {
+    await Speak(text)
+    Log(text)
+}

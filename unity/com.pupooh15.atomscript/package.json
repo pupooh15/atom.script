@@ -1,0 +1,9 @@
+{
+  "name": "com.pupooh15.atomscript",
+  "displayName": "AtomScript",
+  "version": "0.1.0",
+  "unity": "6000.0",
+  "description": "エンジン非依存のイベントスクリプトシステム AtomScript の Unity 統合（ネイティブのコア VM と C# ラッパー）。",
+  "keywords": [ "script", "event", "atomscript" ],
+  "dependencies": {}
+}

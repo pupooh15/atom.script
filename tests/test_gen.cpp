@@ -63,7 +63,7 @@ public:
 		log.push_back( "cleared?" + std::to_string( quest_id ) );
 		return questCleared;
 	}
-	void OnCancel( ats_call_token token ) override { cancelled.push_back( token ); }
+	void OnCancel( ats_vm*, ats_call_token token ) override { cancelled.push_back( token ); }
 
 	std::string Log() const
 	{

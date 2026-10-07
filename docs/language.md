@@ -136,7 +136,7 @@ queries:                              # 待機しない問い合わせ。returns
 atsc compile  <file.ats>... -m <manifest> [-o <out.atsb | dir>] [--json] [--no-debug]
 atsc validate <file.ats>... -m <manifest> [--json]
 atsc disasm   <file.atsb>
-atsc gen      -m <manifest> --lang <cpp | html> [-o <file>] [--namespace <ns>]
+atsc gen      -m <manifest> --lang <cpp | csharp | html> [-o <file>] [--namespace <ns>]
 atsc lsp      （言語サーバー。VS Code 拡張が起動する）
 ```
 
@@ -147,13 +147,24 @@ atsc lsp      （言語サーバー。VS Code 拡張が起動する）
     - 即時コマンド・クエリ：引数を受け取り、値を返す（`returns` がなければ void）。
     - 待機ありコマンド：`ats_call*` と引数を受け取り、`ATS_DONE` / `ATS_PENDING` / `ATS_RUNNING` / `ATS_FAIL` を返す。
       `ATS_PENDING` のときは `ats_call_get_token( call )` を取っておき、終わったら `ats_call_complete( ats_call_vm( call ), token, 結果 )`。
-    - `OnCancel( token )`：待機中のコマンドが中断されたとき。
+    - `OnCancel( vm, token )`：待機中のコマンドが中断されたとき（トークンは VM ごとに振られるので VM も渡る）。
   - `Register( rt, &impl )`：共有変数（`DefineVars`）とコマンド・クエリ（`RegisterCommands`）をまとめて登録。シグネチャのハッシュはコンパイラと同じ規則で埋め込まれる。
   - `enum class`、`MakeValue()` / `MakeHandle()`、共有変数の ID（`vars::story::chapter`）、イベントの発火（`events::FireOnTalk( vm, prog, … )` / `BroadcastOnTalk`）、`kManifestHash`。
 - `--lang html`：プランナー向けのコマンド一覧（カテゴリ別のコマンド・クエリ、イベント、共有変数、enum）。
-- C#（Unity 用）は Unity 統合と一緒に作る（生成コードが使う C# ラッパーの API を先に決めるため）。
+- `--lang csharp`：Unity 用の登録コード（Unity パッケージ `unity/com.pupooh15.atomscript` の `AtomScript` 名前空間の API を使う）。
+  名前空間は `--namespace`（省略時は `project` を PascalCase にしたもの。`sample_rpg` → `SampleRpg`）。
+  - `interface I<Project>Commands`：コマンド・クエリごとのメソッド。MonoBehaviour でも普通のクラスでも実装できる。
+    - 即時コマンド・クエリ：引数を受け取り、値を返す（`returns` がなければ void）。
+    - 待機ありコマンド：引数と `CancellationToken ct` を受け取り、`Awaitable`（結果があれば `Awaitable<T>`）を返す。
+      終わると自動で完了が VM に伝わる。その場で終わっていれば待機しない。例外はコマンドの失敗（ファイバの中断）になる。
+      ファイバが中断されると（`AbortFiber`、`race`、VM の破棄）`ct` がキャンセルされる。
+  - `Registration.Register( rt, impl )`：共有変数（`DefineVars`）とコマンド・クエリ（`RegisterCommands`）をまとめて登録。`Registration.ManifestHash`。
+  - `enum`、型付きの共有変数 ID（`Vars.Story.Chapter` は `VarId<int>`。`vm.Get( … )` / `vm.Set( … )`）、
+    イベントの発火（`Events.FireOnTalk( vm, program, … )` / `BroadcastOnTalk`）。
+  - 名前は C# の慣習に合わせる：バンク・変数は PascalCase、引数は camelCase。handle は `AtsHandle`。
 
-使い方の例はテスト `tests/test_gen.cpp`（ビルド時に `samples/sample.atsmanifest.yaml` から生成したヘッダーを使っている）。
+使い方の例はテスト `tests/test_gen.cpp`（ビルド時に `samples/sample.atsmanifest.yaml` から生成したヘッダーを使っている）と、
+Unity パッケージのテスト `unity/com.pupooh15.atomscript/Tests/Editor/`（ビルド時に生成した `Generated/*.g.cs` を使っている）。
 
 - エラーは `file(line,col): error: …`（VS / VS Code で飛べる形式）。`--json` で JSON 配列。
 - 複数ファイルを渡すと、スクリプトIDの重複も検査する。

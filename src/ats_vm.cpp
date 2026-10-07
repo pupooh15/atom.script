@@ -279,7 +279,7 @@ void ats_vm::AbortFiber( Fiber* f, bool cancel )
 			ats_call_token token = ats_call_get_token( &f->call );
 			uint32_t saved = current;
 			current = f->index + 1;		// キャンセル中の再入を防ぐ
-			cmd.cancel( token, cmd.user );
+			cmd.cancel( this, token, cmd.user );
 			current = saved;
 		}
 	}

@@ -1,6 +1,6 @@
 # AtomScript 仕様書（ドラフト）
 
-> この文書は Claude Docs の「AtomScript 仕様書（ドラフト）」から書き出したもの（2026-10-06 時点）。図は Mermaid で描き直している。
+> この文書は Claude Docs の「AtomScript 仕様書（ドラフト）」から書き出したもの（2026-10-07 時点）。図は Mermaid で描き直している。
 
 Oct 6, 2026 · @はぎはら
 
@@ -392,7 +392,7 @@ ats_result ats_vm_load(ats_vm* vm, ats_read_fn read, void* user);
 
 /* コマンドハンドラの型 */
 typedef ats_status (*ats_command_fn)(ats_call* call, void* user);   /* ATS_DONE / ATS_PENDING / ATS_RUNNING / ATS_FAIL */
-typedef void       (*ats_cancel_fn)(ats_call_token token, void* user);
+typedef void       (*ats_cancel_fn)(ats_vm* vm, ats_call_token token, void* user);   /* トークンは VM ごとなので VM も渡す */
 ```
 
 登録は記述子（`ats_command_desc` など。先頭に `size`）で渡す。チャンネル名とシグネチャのハッシュは、マニフェストから生成した登録コードが入れる。共有変数も同じ生成コードが `ats_define_var` で登録する。実際の宣言はリポジトリの `include/atomscript/ats_api.h`。
@@ -493,18 +493,40 @@ Unity では UPM パッケージ `com.<company>.atomscript` として配布す�
 ### コマンドの実装
 
 ```csharp
-// マニフェストから生成された partial クラスに中身を書く
-public partial class SampleRpgCommands
+// atsc gen --lang csharp が生成した interface を実装する（MonoBehaviour でも普通のクラスでもよい）
+public class MyCommands : MonoBehaviour, ISampleRpgCommands
 {
     // 即時コマンド
-    partial void CameraShake(float power, float duration)
+    public void CameraShake(float power, float duration)
         => cameraRig.Shake(power, duration);
 
-    // 待機ありコマンド：終わると自動で ats_call_complete が呼ばれる
-    partial Awaitable ShowMessage(string text, Face face, CancellationToken ct)
+    // 待機ありコマンド：Awaitable が終わると自動で ats_call_complete が呼ばれる。
+    // ファイバが中断される（abort・race・VM の破棄）と ct がキャンセルされる
+    public Awaitable ShowMessage(string text, Face face, CancellationToken ct)
         => messageWindow.ShowAsync(text, face, ct);
+
+    // 結果のあるコマンドは Awaitable<T>、クエリは値を返す
+    public Awaitable<int> SelectWindow(SelectType type, CancellationToken ct) => selectWindow.OpenAsync(type, ct);
+    public bool IsQuestCleared(int questId) => quests.IsCleared(questId);
 }
+
+// 初期化
+var runtime = new ScriptRuntime();
+Registration.Register(runtime, myCommands);          // 共有変数とコマンドの登録
+var program = runtime.LoadProgram(asset.bytes);
+var vm = runtime.CreateVM();
+AtomScriptLoop.Register(vm);                         // PlayerLoop で毎フレーム更新
+
+Events.FireOnTalk(vm, program, npcs.Add(npc));       // handle は AtsHandle（HandleTable<T> で対応付けられる）
+int chapter = vm.Get(Vars.Story.Chapter);            // 型付きの変数 ID（VarId<int>）
 ```
+
+C# ラッパーの取り決め（2026-10-07 決定）：
+
+- コマンドの実装は生成された **interface**（`I<Project>Commands`）。実装漏れはコンパイルエラーになり、テスト用の差し替えもしやすい。
+- 待機ありコマンドは `Awaitable` / `Awaitable<T>` ＋ `CancellationToken`。その場で終わっていれば待機しない。例外はコマンドの失敗になる。特殊なコマンドは `ScriptRuntime.RegisterCommand` で手書き登録できる（トークンを取って `ScriptVM.Complete` / `Fail`）。
+- エラーは、作成・読み込み・登録・ロードなど初期化系は `AtsException`、`Update` / `IsFiberAlive` / `AbortFiber` は例外を投げない。
+- `ScriptRuntime` / `ScriptVM` / `ScriptProgram` は `IDisposable`。ランタイムを破棄すると VM も破棄される。MonoBehaviour のコンポーネントは提供しない。
 
 ### 注意点
 

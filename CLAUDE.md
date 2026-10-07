@@ -32,6 +32,8 @@ LT（DS、2007年）のスクリプトマネージャ（`E:\usr\app\ds\LT\prog\s
 | セーブ | 変数と乱数の状態だけ。**実行中のファイバは保存しない**。再開位置はスクリプトが変数（LT のイベントランク相当）で判断する |
 | スタック要素 | 64bit（仕様書の当初案 32bit から変更済み） |
 | LT 資産 | 参考のみ。互換性は持たない |
+| C# ラッパー（2026-10-07） | ① コマンドの実装は **interface**（`I<Project>Commands`。MonoBehaviour でも実装できる）。仕様書の partial クラス案から変更 ② 待機ありは `Awaitable` / `Awaitable<T>` ＋ `CancellationToken`。低レベル登録 `ScriptRuntime.RegisterCommand` も残す ③ handle は `AtsHandle` 構造体＋任意の `HandleTable<T>` ④ 共有変数は型付き `VarId<T>` ⑤ イベントは `Events.FireXxx` ⑥ 初期化系は例外（`AtsException`）、Update・IsFiberAlive・AbortFiber は例外なし ⑦ `IDisposable` ＋ `AtomScriptLoop`（PlayerLoop）。MonoBehaviour は提供しない ⑧ 名前空間 `AtomScript`、`ScriptRuntime` / `ScriptVM` / `ScriptProgram` |
+| cancel コールバック | `ats_cancel_fn( vm, token, user )`。トークンは VM ごとに振られるため VM も渡す（2026-10-07 に変更） |
 
 ## リポジトリの構成
 
@@ -43,6 +45,9 @@ tools/writer/                    .atsb 書き出し（STL 可）。max_stack を
 tools/compiler/                  コンパイラ：yaml → manifest → lexer → parser → compiler（意味検査＋コード生成）、disasm、
                                  gen（C++ / HTML）、json と lsp（言語サーバー）、atsc_main
 editors/vscode/                  VS Code 拡張（TypeScript。解析は atsc lsp に任せ、拡張側に解析器は持たない）
+unity/com.pupooh15.atomscript/   Unity パッケージ（パッケージ名は仮）。Runtime/ が C# ラッパー、Tests/Editor/ が EditMode テスト
+                                 Tests/Editor/Generated/*.g.cs と Data/*.atsb.bytes は CMake のビルドで atsc から作られる（コミットする）
+                                 Runtime/Plugins/Windows/x86_64/atomscript.dll もビルドでコピーされる（.dll はコミットしない。.meta はする）
 samples/                         sample.atsmanifest.yaml、merchant.ats（仕様書 §4 の例）
 tests/                           自前の簡易テスト（TEST / CHECK / REQUIRE）。Env が確保数を数えてリークを検出する
 docs/                            spec.md / language.md / bytecode.md
@@ -64,6 +69,21 @@ npm test                                   # 実際の atsc lsp と標準入出�
 echo y | npx vsce package                  # LICENSE が無いので確認に y を渡す。先に npm run copy-atsc で bin/ に atsc を入れる
 ```
 
+# Unity パッケージのテスト（先に上の CMake ビルドで DLL と生成物を作る。Unity 6000.0.67f1 で確認）
+# スクラッチ領域などに空のプロジェクトを作り、Packages/manifest.json に
+#   "com.pupooh15.atomscript": "file:E:/usr/app/github/atom.script/unity/com.pupooh15.atomscript",
+#   "com.unity.test-framework": "1.6.0"  と  "testables": [ "com.pupooh15.atomscript" ] を書いて：
+"/c/Program Files/Unity/Hub/Editor/6000.0.67f1/Editor/Unity.exe" -batchmode -nographics -projectPath <プロジェクト>     -runTests -testPlatform EditMode -testResults results.xml -logFile unity.log   # 現在 19 件すべて成功
+```
+
+- Unity は 8.3 形式の短いパス（`KAZUHI~1.HAG`）のプロジェクトだとプレイヤービルドが失敗する。長いパスで渡す。
+- IL2CPP（StandaloneWindows64）で確かめるときは `-testPlatform StandaloneWindows64 -testSettingsFile <{"scriptingBackend":"IL2CPP"}>`。
+  プロジェクトのパスが深いと出力が MAX_PATH（260 文字）を超え、プレイヤーが「Failed to initialize IL2CPP」で止まる（エディタは待ち続ける）。
+  スクラッチ領域は深すぎるので、短いパス（例 `E:	mp\…`）に一時プロジェクトを作る。プレイヤー用のテストはパッケージに無いので、
+  Assets に PlayMode テスト（生成コードと .atsb を Resources に置く）を一時的に作って動かした（2026-10-07 に 1 件成功）。
+- Unity はパッケージに .meta を書き出す。新しいファイルを足したら .meta もコミットする。
+
+```bash
 - 構文ハイライトの正規表現は vscode-textmate + vscode-oniguruma で実際に字句分けして確かめた（スクラッチ領域で実施。リポジトリには入れていない）。
 
 - PATH に cmake は無い。上のフルパスを使う。コンソール出力は cp932 なので、MSVC のメッセージを読むときは `iconv -f cp932 -t utf-8`。
@@ -82,21 +102,24 @@ echo y | npx vsce package                  # LICENSE が無いので確認に y 
 | --- | --- |
 | 段階1：コア VM・C API | 完了（push 済み、コミット 7135e08） |
 | 段階1：コンパイラ・CLI | 完了（push 済み） |
-| 段階1：`atsc gen`（C++ / HTML） | 完了（push 済み、テスト 52 件）。C# は Unity 統合と一緒に作る |
+| 段階1：`atsc gen`（C++ / HTML / C#） | 完了 |
 | 段階2：VS Code 拡張 | 完了（push 済み、テスト 58 件）。デバッガ（DAP）は VM 側のデバッグサーバーと一緒に作る |
-| 段階2：Unity 統合、UE 統合 | 未着手 |
+| 段階2：Unity 統合 | C# ラッパーと PlayerLoop 更新は実装済み（Windows x64。EditMode テスト 19 件成功、IL2CPP プレイヤーでの動作も確認）。ScriptedImporter・他プラットフォームのプラグイン・デバッガ接続は未着手 |
+| 段階2：UE 統合 | 未着手 |
 | 段階3：家庭用機・モバイル対応、ノードエディタ | 未着手 |
 
 ## ユーザーへの確認待ち
 
-現在なし。コミット・プッシュは毎回ユーザーの指示を待つこと。
+- Unity パッケージ名 `com.pupooh15.atomscript` は仮（仕様書は `com.<company>.atomscript`）。決まったらフォルダー名・package.json・CMake・テストのパスを直す。
+
+コミット・プッシュは毎回ユーザーの指示を待つこと。
 
 （済）atsc の実装中に決めた文法・マニフェストの追加は仕様書 §4「文法の補足」・§8 に反映し、`docs/spec.md` も書き出し直した。
 
 ## 次の作業の候補
 
-- `atsc gen --lang csharp`：Unity 用の登録コード。生成コードが使う C# ラッパーの API（Unity パッケージ側）を先に決めてから作る。
-  C++ 版（`GenerateCpp`）と同じ構成（Commands の抽象クラス、Register、enum、vars、events）にする想定
+- Unity パッケージの続き：`.ats` の ScriptedImporter（atsc を呼んで .atsb のバイト列を持つ ScriptableObject を作る）、
+  エディタからの `atsc gen` 実行、macOS / Android / iOS / 家庭用機のプラグイン、PlayMode（実機）で動くテスト
 - `gen` の改善候補：`Commands` をカテゴリごとに分割できるようにする、UE 向け（UObject / Blueprint）の生成
 - `atsc fmt` / `strings` / `refs`
 - VS Code 拡張の続き：デバッガ（DAP。VM 側のデバッグサーバー `ats_debug_server_start` が先に必要）、ホットリロード、Marketplace 以外での配布方法

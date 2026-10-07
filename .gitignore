@@ -3,3 +3,4 @@
 /.vs/
 *.user
 *.atsb
+/unity/*/Runtime/Plugins/**/*.dll

@@ -1,0 +1,56 @@
+# C# ラッパーのテスト用マニフェスト（Generated/WrapperTest.g.cs はこれから atsc gen で作る）
+manifest: 1
+project: wrapper_test
+
+enums:
+  Mood:
+    values: { Calm: 0, Angry: 1 }
+
+variable_banks:
+  g:
+    scope: persistent
+    vars:
+      - { id: 1, name: counter, type: int }
+      - { id: 2, name: label,   type: string, init: "none" }
+      - { id: 3, name: mood,    type: Mood,   init: Mood.Angry }
+      - { id: 4, name: ratio,   type: float,  init: 0.5 }
+      - { id: 5, name: flag,    type: bool }
+  tmp:
+    scope: session
+    vars:
+      - { id: 10, name: last, type: handle }
+
+events:
+  - name: Start
+  - name: Talk
+    params: [ { name: who, type: handle }, { name: line, type: string } ]
+  - name: Explode
+  - name: Chat
+    params: [ { name: text, type: string } ]
+
+commands:
+  - name: Log
+    params: [ { name: text, type: string } ]
+  - name: Wait
+    latent: true
+    params: [ { name: key, type: string } ]
+  - name: Ask
+    latent: true
+    returns: int
+    params: [ { name: mood, type: Mood } ]
+  - name: AskName
+    latent: true
+    returns: string
+  - name: Boom
+  - name: Speak
+    latent: true
+    channel: voice
+    params: [ { name: text, type: string } ]
+
+queries:
+  - name: Twice
+    returns: int
+    params: [ { name: x, type: int } ]
+  - name: NameOf
+    returns: string
+    params: [ { name: who, type: handle } ]

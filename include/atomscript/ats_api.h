@@ -117,7 +117,8 @@ typedef void		(ATS_CALL *ats_free_fn)(void* ptr, void* user);
 typedef void		(ATS_CALL *ats_log_fn)(ats_log_level level, const char* message, void* user);
 
 typedef ats_status	(ATS_CALL *ats_command_fn)(ats_call* call, void* user);
-typedef void		(ATS_CALL *ats_cancel_fn)(ats_call_token token, void* user);
+/* トークンは VM ごとに振られるので、どの VM の呼び出しかも渡す */
+typedef void		(ATS_CALL *ats_cancel_fn)(ats_vm* vm, ats_call_token token, void* user);
 typedef ats_result	(ATS_CALL *ats_query_fn)(ats_call* call, void* user);
 
 typedef ats_result	(ATS_CALL *ats_write_fn)(const void* data, size_t size, void* user);

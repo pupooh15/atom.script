@@ -38,13 +38,17 @@ bool Disassemble( const std::vector<uint8_t>& bytes, std::string* out, std::stri
 // マニフェストからのコード生成（atsc gen）
 //=========================================================================
 struct GenOptions {
-	std::string	nameSpace;		// 空ならマニフェストの project（識別子に使えない文字は _ に置き換える）
+	std::string	nameSpace;		// 空ならマニフェストの project（C++ は識別子に使えない文字を _ に、C# は PascalCase にする）
 	std::string	source;			// 生成元のファイル名（ヘッダーのコメント用）
 };
 
 // C++ のヘッダー（ヘッダーのみで完結）。コマンド・クエリの実装インターフェイスと登録関数、
 // enum、共有変数の ID、イベントの発火関数を含む
 std::string GenerateCpp( const Manifest& manifest, const GenOptions& options );
+
+// C#（Unity）の登録コード。コマンド・クエリの実装 interface、登録クラス、enum、
+// 共有変数の型付き ID、イベントの発火関数を含む。Unity パッケージの AtomScript 名前空間を使う
+std::string GenerateCSharp( const Manifest& manifest, const GenOptions& options );
 
 // プランナー向けのコマンド一覧（HTML）
 std::string GenerateHtml( const Manifest& manifest, const GenOptions& options );

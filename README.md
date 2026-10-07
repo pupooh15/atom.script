@@ -10,9 +10,10 @@ LT（DS）のスクリプトマネージャを参考に新規設計したもの�
 | コア VM・C API | 実装済み（本リポジトリ） |
 | バイナリ形式 `.atsb` | v1.0（[docs/bytecode.md](docs/bytecode.md)） |
 | 書き出しライブラリ（`tools/writer`） | 実装済み |
-| コンパイラ `atsc`（`.ats` → `.atsb`） | 実装済み（[docs/language.md](docs/language.md)）。`gen` は C++ と HTML に対応（C# は Unity 統合と一緒に作る）。`fmt` / `strings` / `refs` は未実装 |
+| コンパイラ `atsc`（`.ats` → `.atsb`） | 実装済み（[docs/language.md](docs/language.md)）。`gen` は C++・C#（Unity）・HTML に対応。`fmt` / `strings` / `refs` は未実装 |
 | VS Code 拡張（`editors/vscode`） | 実装済み。構文ハイライト・スニペット・言語サーバー（`atsc lsp`）によるエラー表示・補完・ホバー・定義へ移動・引数ヒント・アウトライン |
-| Unity / UE 統合、デバッガ | 未着手 |
+| Unity パッケージ（`unity/com.pupooh15.atomscript`） | C# ラッパー（P/Invoke・SafeHandle・`Awaitable`）と PlayerLoop での更新を実装済み。Windows x64 のみ。インポーター（ScriptedImporter）は未実装 |
+| UE 統合、デバッガ | 未着手 |
 
 ## ディレクトリ
 
@@ -23,6 +24,7 @@ src/                             コア VM（例外・RTTI・STL を使わない
 tools/writer/                    .atsb の書き出し（ツール側。STL 可）
 tools/compiler/                  コンパイラ（マニフェスト・字句／構文解析・意味検査・コード生成）と atsc
 editors/vscode/                  VS Code 拡張（TypeScript。解析は atsc lsp に任せる）
+unity/com.pupooh15.atomscript/   Unity パッケージ（C# ラッパーとテスト）
 samples/                         サンプルのマニフェストとスクリプト
 tests/                           テスト
 docs/spec.md                     仕様書
