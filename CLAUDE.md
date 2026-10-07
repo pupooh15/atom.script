@@ -98,13 +98,14 @@ echo y | npx vsce package                  # LICENSE が無いので確認に y 
 ## ビルドとテスト（macOS）
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j                    # arm64 + x86_64 のユニバーサル、最小 macOS 11.0（CMakeLists.txt の既定）
 ./build/atomscript_tests                   # arch -x86_64 を付けると Rosetta で x86_64 側も確かめられる
 ```
 
-- この Mac（Command Line Tools のみ、Xcode なし）では既定の SDK（MacOSX27.0）が付属のリンカーで読めず、CMake の
-  コンパイラ検査で失敗する。`CMAKE_OSX_SYSROOT` に MacOSX26.5.sdk を指定する。
+- この Mac は Xcode なし（Command Line Tools のみ）。CLT 26.6 のリンカーは SDK 27 を読めず（「unknown architecture arm64e.x1」）、
+  CMake も Unity の IL2CPP ビルドも失敗していた。2026-10-07 に CLT 27.0 に更新して解消（SDK の指定も回避策も不要）。
+  同じエラーが出たら CLT を更新する（`softwareupdate --list` で確認）。
 - .bundle は arm64・x86_64 の両方で dlopen して `ats_get_api_version` が呼べることを確かめた（x86_64 は Rosetta）。
 
 ```bash
@@ -117,9 +118,6 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
   2026-10-07 に PlayMode（エディタ内）と macOS プレイヤー arm64 / x64（Rosetta）× Mono / IL2CPP の 4 通りで成功。
   アーキテクチャはテスト用プロジェクトの [InitializeOnLoad] のエディタスクリプトで `UnityEditor.OSXStandalone.UserBuildSettings.architecture` を切り替えた。
   - 初回は「Error building Player because scripts are compiling」で失敗することがある。先に `-batchmode -quit` で一度開いておく。
-  - この Mac では IL2CPP のリンクも SDK 27 で失敗する（Unity は `xcode-select -p` の下の一番新しい SDK を使い、SDKROOT は効かない）。
-    テスト用プロジェクトのエディタスクリプトで `PlayerSettings.SetAdditionalIl2CppArgs( "--linker-flags=\"-isysroot …/MacOSX26.5.sdk\"" )` として回避した。
-    Command Line Tools を更新すれば不要になるはず。
 - メモリの不具合は ASan で確かめられる：`-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined"`（リンカーフラグにも同じものを付ける）。
 
 ## コードの書き方
@@ -145,6 +143,7 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
 
 - macOS 用の atsc と Unity プラグイン `atomscript.bundle` を追加（CMake の `atomscript_bundle`、arm64 + x86_64 のユニバーサル、最小 macOS 11.0）。
   Unity 6000.0.67f1（Apple Silicon）で EditMode テスト 28 件成功、コアのテスト 58 件は arm64・x86_64（Rosetta）とも成功。
+  CLT 27.0 への更新後、SDK の指定・回避策なしでコア（Debug / Release）と Unity（EditMode・PlayMode・プレイヤー 4 通り）を確認し直した。
 - ASan / UBSan で見つけた不具合を修正：
   - テストで `Env` を `Host` より先に宣言していたため、VM の破棄時のキャンセル通知が破棄済みの `Host` に書き込んでいた（MSVC ではたまたま表に出ていなかった）。
     VM の破棄時にホストへ通知が来るので、ホスト側のオブジェクトは `Env` より先に宣言する。
