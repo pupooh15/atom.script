@@ -1,5 +1,5 @@
 //=========================================================================
-//	C# ラッパーのテスト（Generated/WrapperTest.g.cs と Data/WrapperTest.atsb.bytes を使う）
+//	C# ラッパーのテスト（Generated/WrapperTest.g.cs と Data~/WrapperTest.atsb.bytes を使う）
 //	どちらも CMake のビルドで atsc から作られる。
 //=========================================================================
 using System;
@@ -17,7 +17,7 @@ namespace AtomScript.Tests
 {
 	public class WrapperTests
 	{
-		internal const string DataDir = "Packages/com.pupooh15.atomscript/Tests/Editor/Data/";
+		internal const string DataDir = "Packages/com.pupooh15.atomscript/Tests/Editor/Data~/";
 
 		internal static byte[] LoadBytes( string name ) => File.ReadAllBytes( Path.GetFullPath( DataDir + name ) );
 

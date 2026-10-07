@@ -141,26 +141,28 @@ if( EXISTS "${ATS_UNITY_PACKAGE}" )
 	# ats_unity_asset( 名前 マニフェスト スクリプト )
 	function( ats_unity_asset name manifest script )
 		add_custom_command(
-			OUTPUT "${ATS_UNITY_TESTS}/Generated/${name}.g.cs" "${ATS_UNITY_TESTS}/Data/${name}.atsb.bytes"
+			OUTPUT "${ATS_UNITY_TESTS}/Generated/${name}.g.cs" "${ATS_UNITY_TESTS}/Data~/${name}.atsb.bytes"
 			COMMAND atsc gen -m "${manifest}" --lang csharp -o "${ATS_UNITY_TESTS}/Generated/${name}.g.cs"
 			COMMAND atsc compile "${script}" -m "${manifest}" -o "${CMAKE_CURRENT_BINARY_DIR}/${name}.atsb"
-			COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/${name}.atsb" "${ATS_UNITY_TESTS}/Data/${name}.atsb.bytes"
+			COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/${name}.atsb" "${ATS_UNITY_TESTS}/Data~/${name}.atsb.bytes"
 			DEPENDS atsc "${manifest}" "${script}"
 			COMMENT "Unity テスト用アセット: ${name}"
 		)
-		set( ATS_UNITY_OUTPUTS ${ATS_UNITY_OUTPUTS} "${ATS_UNITY_TESTS}/Generated/${name}.g.cs" "${ATS_UNITY_TESTS}/Data/${name}.atsb.bytes" PARENT_SCOPE )
+		set( ATS_UNITY_OUTPUTS ${ATS_UNITY_OUTPUTS} "${ATS_UNITY_TESTS}/Generated/${name}.g.cs" "${ATS_UNITY_TESTS}/Data~/${name}.atsb.bytes" PARENT_SCOPE )
 	endfunction()
 	ats_unity_asset( SampleRpg "${CMAKE_CURRENT_SOURCE_DIR}/samples/sample.atsmanifest.yaml" "${CMAKE_CURRENT_SOURCE_DIR}/samples/merchant.ats" )
-	ats_unity_asset( WrapperTest "${ATS_UNITY_TESTS}/Data/wrapper_test.atsmanifest.yaml" "${ATS_UNITY_TESTS}/Data/wrapper_test.ats" )
+	ats_unity_asset( WrapperTest "${ATS_UNITY_TESTS}/Data~/wrapper_test.atsmanifest.yaml" "${ATS_UNITY_TESTS}/Data~/wrapper_test.ats" )
 	add_custom_target( unity_test_assets ALL DEPENDS ${ATS_UNITY_OUTPUTS} )
 
-	# エディタ（Windows x64）で使う DLL をパッケージにコピーする（最後にビルドした構成のものが入る）
+	# エディタ（Windows x64）で使う DLL と、インポーターが呼ぶ atsc をパッケージにコピーする（最後にビルドした構成のものが入る）
 	if( WIN32 AND ATS_BUILD_SHARED AND CMAKE_SIZEOF_VOID_P EQUAL 8 )
 		add_custom_target( unity_plugin ALL
 			COMMAND ${CMAKE_COMMAND} -E make_directory "${ATS_UNITY_PACKAGE}/Runtime/Plugins/Windows/x86_64"
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:atomscript>" "${ATS_UNITY_PACKAGE}/Runtime/Plugins/Windows/x86_64/"
-			DEPENDS atomscript
-			COMMENT "atomscript.dll を Unity パッケージにコピー"
+			COMMAND ${CMAKE_COMMAND} -E make_directory "${ATS_UNITY_PACKAGE}/Editor/Tools~/win-x64"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:atsc>" "${ATS_UNITY_PACKAGE}/Editor/Tools~/win-x64/"
+			DEPENDS atomscript atsc
+			COMMENT "atomscript.dll と atsc.exe を Unity パッケージにコピー"
 		)
 	endif()
 endif()

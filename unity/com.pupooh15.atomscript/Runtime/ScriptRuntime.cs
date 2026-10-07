@@ -156,6 +156,13 @@ namespace AtomScript
 			return new ScriptProgram( this, p );
 		}
 
+		// インポートした .ats を読み込む
+		public ScriptProgram LoadProgram( AtsScriptAsset asset )
+		{
+			if( asset == null ) throw new ArgumentNullException( nameof( asset ) );
+			return LoadProgram( asset.Bytecode );
+		}
+
 		public ScriptVM CreateVM() => CreateVM( default );
 
 		public ScriptVM CreateVM( ScriptVMOptions options )

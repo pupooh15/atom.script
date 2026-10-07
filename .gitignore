@@ -4,3 +4,4 @@
 *.user
 *.atsb
 /unity/*/Runtime/Plugins/**/*.dll
+/unity/*/Editor/Tools~/

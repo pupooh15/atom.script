@@ -3,6 +3,7 @@
     "rootNamespace": "AtomScript.Tests",
     "references": [
         "AtomScript.Runtime",
+        "AtomScript.Editor",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],
