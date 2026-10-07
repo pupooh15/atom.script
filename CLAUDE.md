@@ -35,6 +35,7 @@ LT（DS、2007年）のスクリプトマネージャ（`E:\usr\app\ds\LT\prog\s
 | C# ラッパー（2026-10-07） | ① コマンドの実装は **interface**（`I<Project>Commands`。MonoBehaviour でも実装できる）。仕様書の partial クラス案から変更 ② 待機ありは `Awaitable` / `Awaitable<T>` ＋ `CancellationToken`。低レベル登録 `ScriptRuntime.RegisterCommand` も残す ③ handle は `AtsHandle` 構造体＋任意の `HandleTable<T>` ④ 共有変数は型付き `VarId<T>` ⑤ イベントは `Events.FireXxx` ⑥ 初期化系は例外（`AtsException`）、Update・IsFiberAlive・AbortFiber は例外なし ⑦ `IDisposable` ＋ `AtomScriptLoop`（PlayerLoop）。MonoBehaviour は提供しない ⑧ 名前空間 `AtomScript`、`ScriptRuntime` / `ScriptVM` / `ScriptProgram` |
 | ScriptedImporter（2026-10-07） | `.ats` を保存すると atsc を子プロセスで呼んで `AtsScriptAsset`（ScriptableObject、.atsb のバイト列）にする。マニフェストは Project Settings → AtomScript（`ProjectSettings/AtomScriptSettings.asset`）で指定、未設定なら Assets に 1 つだけあるもの。マニフェスト（include 先含む）と atsc が変わったらカスタム依存 `AtomScript/Manifest` で全 .ats を再インポート。エラーは `パス(行,列): error: …` でコンソールに出し、アセットは作らない |
 | エディタからの atsc gen（2026-10-07） | マニフェスト（include 先含む）・atsc が変わったら自動で C# を作り直す（Project Settings でオフにできる）。手動は Assets → AtomScript → C# を生成、Project Settings の「今すぐ生成」。出力先の既定は `Assets/AtomScript/Generated/{Project}.g.cs`、名前空間の既定は project の PascalCase。中身が同じなら書き換えない。生成物はバージョン管理に入れる想定 |
+| macOS の Unity エディタ（2026-10-07） | Apple Silicon 版だけ対応すればよい（Intel 版エディタは確認しない）。プラグインと atsc はユニバーサルのまま（Intel の Mac で動くプレイヤーのため） |
 | cancel コールバック | `ats_cancel_fn( vm, token, user )`。トークンは VM ごとに振られるため VM も渡す（2026-10-07 に変更） |
 
 ## リポジトリの構成
@@ -135,7 +136,7 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
 | 段階1：コンパイラ・CLI | 完了（push 済み） |
 | 段階1：`atsc gen`（C++ / HTML / C#） | 完了 |
 | 段階2：VS Code 拡張 | 完了（push 済み、テスト 58 件）。デバッガ（DAP）は VM 側のデバッグサーバーと一緒に作る |
-| 段階2：Unity 統合 | C# ラッパーと PlayerLoop 更新、ScriptedImporter、エディタからの atsc gen は実装済み（Windows x64。EditMode テスト 28 件成功、ラッパーは IL2CPP プレイヤーでも確認）。macOS 用の atsc とプラグイン（.bundle、ユニバーサル）も実装済み（EditMode テスト 28 件成功。macOS プレイヤーは arm64 / x64 × Mono / IL2CPP で確認。Intel 版エディタは未確認）。Android / iOS / 家庭用機のプラグイン、デバッガ接続は未着手 |
+| 段階2：Unity 統合 | C# ラッパーと PlayerLoop 更新、ScriptedImporter、エディタからの atsc gen は実装済み（Windows x64。EditMode テスト 28 件成功、ラッパーは IL2CPP プレイヤーでも確認）。macOS 用の atsc とプラグイン（.bundle、ユニバーサル）も実装済み（EditMode テスト 28 件成功。macOS プレイヤーは arm64 / x64 × Mono / IL2CPP で確認）。Android / iOS / 家庭用機のプラグイン、デバッガ接続は未着手 |
 | 段階2：UE 統合 | 未着手 |
 | 段階3：家庭用機・モバイル対応、ノードエディタ | 未着手 |
 
@@ -157,7 +158,7 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
 1. **Windows でビルドし直して確認する**：`unity/plugin-meta` から .meta がコピーされること、EditMode テスト 28 件、PlayMode・Windows プレイヤー（Mono / IL2CPP）のテスト 2 件、
    コアのテスト 58 件（Debug / Release）、/W4 で警告ゼロ（`TypeRef` とテストの変更が入っている）。
    既存の Unity プロジェクトのパッケージ内に古い `Runtime/Plugins` が残っていても、ビルドで上書きされるので問題ない想定
-2. macOS の残り：Intel 版エディタでの確認、配布用の署名・公証
+2. macOS の残り：配布用の署名・公証
 3. 下の「次の作業の候補」から（Android / iOS のプラグインなど）
 
 ## ユーザーへの確認待ち
@@ -171,7 +172,7 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
 ## 次の作業の候補
 
 - Unity パッケージの続き：`.ats` のアイコン、
-  macOS の Intel 版エディタでの確認、配布用の署名・公証（今は ad-hoc 署名のみ）、
+  macOS の配布用の署名・公証（今は ad-hoc 署名のみ）、
   Android / iOS / 家庭用機のプラグイン（プレイヤー用テストは Tests/Runtime にある）。
   インポートは 1 ファイル 0.5〜0.8 秒（atsc の起動込み）。数が増えて遅ければ、まとめてコンパイルする方法を考える
 - `gen` の改善候補：`Commands` をカテゴリごとに分割できるようにする、UE 向け（UObject / Blueprint）の生成
