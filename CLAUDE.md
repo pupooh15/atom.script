@@ -36,6 +36,7 @@ LT（DS、2007年）のスクリプトマネージャ（`E:\usr\app\ds\LT\prog\s
 | ScriptedImporter（2026-10-07） | `.ats` を保存すると atsc を子プロセスで呼んで `AtsScriptAsset`（ScriptableObject、.atsb のバイト列）にする。マニフェストは Project Settings → AtomScript（`ProjectSettings/AtomScriptSettings.asset`）で指定、未設定なら Assets に 1 つだけあるもの。マニフェスト（include 先含む）と atsc が変わったらカスタム依存 `AtomScript/Manifest` で全 .ats を再インポート。エラーは `パス(行,列): error: …` でコンソールに出し、アセットは作らない |
 | エディタからの atsc gen（2026-10-07） | マニフェスト（include 先含む）・atsc が変わったら自動で C# を作り直す（Project Settings でオフにできる）。手動は Assets → AtomScript → C# を生成、Project Settings の「今すぐ生成」。出力先の既定は `Assets/AtomScript/Generated/{Project}.g.cs`、名前空間の既定は project の PascalCase。中身が同じなら書き換えない。生成物はバージョン管理に入れる想定 |
 | macOS の Unity エディタ（2026-10-07） | Apple Silicon 版だけ対応すればよい（Intel 版エディタは確認しない）。プラグインと atsc はユニバーサルのまま（Intel の Mac で動くプレイヤーのため） |
+| macOS の署名・公証（2026-10-07） | 後回し。今はリンカーの ad-hoc 署名のみ。配布方法（仕様書 §14 の未決事項）が決まったら判断する。git（clone・UPM の git URL）で配るなら不要。ビルド済みバイナリを zip / tarball でダウンロードさせるなら必要（quarantine 属性が付き、Gatekeeper が bundle の読み込みと atsc の起動を止める。回避は `xattr -dr com.apple.quarantine`）。出荷するゲームはゲーム開発者が .app ごと署名・公証し直すので関係しない。必要になったら会社の Apple Developer Program（Developer ID 証明書）と codesign / notarytool の手順を足す |
 | cancel コールバック | `ats_cancel_fn( vm, token, user )`。トークンは VM ごとに振られるため VM も渡す（2026-10-07 に変更） |
 
 ## リポジトリの構成
@@ -158,8 +159,7 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
 1. **Windows でビルドし直して確認する**：`unity/plugin-meta` から .meta がコピーされること、EditMode テスト 28 件、PlayMode・Windows プレイヤー（Mono / IL2CPP）のテスト 2 件、
    コアのテスト 58 件（Debug / Release）、/W4 で警告ゼロ（`TypeRef` とテストの変更が入っている）。
    既存の Unity プロジェクトのパッケージ内に古い `Runtime/Plugins` が残っていても、ビルドで上書きされるので問題ない想定
-2. macOS の残り：配布用の署名・公証
-3. 下の「次の作業の候補」から（Android / iOS のプラグインなど）
+2. 下の「次の作業の候補」から（Android / iOS のプラグインなど）
 
 ## ユーザーへの確認待ち
 
@@ -172,7 +172,7 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
 ## 次の作業の候補
 
 - Unity パッケージの続き：`.ats` のアイコン、
-  macOS の配布用の署名・公証（今は ad-hoc 署名のみ）、
+  macOS の配布用の署名・公証（後回しと決定済み。上の表を参照）、
   Android / iOS / 家庭用機のプラグイン（プレイヤー用テストは Tests/Runtime にある）。
   インポートは 1 ファイル 0.5〜0.8 秒（atsc の起動込み）。数が増えて遅ければ、まとめてコンパイルする方法を考える
 - `gen` の改善候補：`Commands` をカテゴリごとに分割できるようにする、UE 向け（UObject / Blueprint）の生成
