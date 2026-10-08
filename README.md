@@ -12,7 +12,7 @@ LT（DS）のスクリプトマネージャを参考に新規設計したもの�
 | 書き出しライブラリ（`tools/writer`） | 実装済み |
 | コンパイラ `atsc`（`.ats` → `.atsb`） | 実装済み（[docs/language.md](docs/language.md)）。`gen` は C++・C#（Unity）・HTML に対応。`fmt` / `strings` / `refs` は未実装 |
 | VS Code 拡張（`editors/vscode`） | 実装済み。構文ハイライト・スニペット・言語サーバー（`atsc lsp`）によるエラー表示・補完・ホバー・定義へ移動・引数ヒント・アウトライン |
-| Unity パッケージ（`unity/com.pupooh15.atomscript`） | C# ラッパー（P/Invoke・SafeHandle・`Awaitable`）、PlayerLoop での更新、`.ats` の ScriptedImporter、エディタからの C# 生成を実装済み。Windows x64・macOS（ユニバーサル）・Android（arm64-v8a） |
+| Unity パッケージ（`unity/com.pupooh15.atomscript`） | C# ラッパー（P/Invoke・SafeHandle・`Awaitable`）、PlayerLoop での更新、`.ats` の ScriptedImporter、エディタからの C# 生成を実装済み。Windows x64・macOS（ユニバーサル）はビルド済みバイナリ、Android・iOS・家庭用機は IL2CPP でソースからビルド |
 | UE 統合、デバッガ | 未着手 |
 
 ## ディレクトリ
@@ -48,7 +48,8 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 build/atomscript_tests
 
-# Android（arm64-v8a、API 23 以上）。NDK と CMake・Ninja は Unity の Android モジュールに入っているものを使える
+# Android（arm64-v8a、API 23 以上）。コアが NDK でコンパイルできるかの確認用（Unity には入れない。下を参照）。
+# NDK と CMake・Ninja は Unity の Android モジュールに入っているものを使える
 #   NDK   = <Unity>/Editor/Data/PlaybackEngines/AndroidPlayer/NDK
 #   CMAKE = <Unity>/Editor/Data/PlaybackEngines/AndroidPlayer/SDK/cmake/3.22.1/bin
 "$CMAKE/cmake" -S . -B build-android -G Ninja -DCMAKE_MAKE_PROGRAM="$CMAKE/ninja"     -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake"     -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-23 -DANDROID_STL=c++_static -DCMAKE_BUILD_TYPE=Release
@@ -57,10 +58,14 @@ build/atomscript_tests
 
 クロスビルド（Android・iOS）では、コアのライブラリだけを作る（atsc とテストはホスト用なので作らない。`ATS_BUILD_TOOLS`）。
 
-ビルドすると Unity パッケージにエディタ用のネイティブプラグインと atsc がコピーされる
-（Windows：`Runtime/Plugins/Windows/x86_64/atomscript.dll`・`Editor/Tools~/win-x64/atsc.exe`、
-macOS：`Runtime/Plugins/macOS/atomscript.bundle`・`Editor/Tools~/osx/atsc`、
-Android：`Runtime/Plugins/Android/arm64-v8a/libatomscript.so`）。
+ビルドすると Unity パッケージにネイティブプラグインと atsc がコピーされる。
+
+| 対象 | Unity パッケージに入るもの |
+| --- | --- |
+| エディタ・デスクトップ（Windows） | ビルド済み `Runtime/Plugins/Windows/x86_64/atomscript.dll`、`Editor/Tools~/win-x64/atsc.exe` |
+| エディタ・デスクトップ（macOS） | ビルド済み `Runtime/Plugins/macOS/atomscript.bundle`、`Editor/Tools~/osx/atsc` |
+| IL2CPP の機種（Android・iOS・家庭用機） | コアのソース `Runtime/Plugins/IL2CPP/AtomScript/`。ゲームのビルド時に IL2CPP が一緒にコンパイルする（機種ごとのバイナリは作らない。Mono には対応しない） |
+
 プラグインの `.meta` は `unity/plugin-meta` からコピーする。
 
 | オプション | 既定 | 内容 |
@@ -72,7 +77,7 @@ Android：`Runtime/Plugins/Android/arm64-v8a/libatomscript.so`）。
 
 成果物：
 
-- `atomscript_static`：静的ライブラリ（iOS・家庭用機・テスト用。`ATS_STATIC` を定義して使う）
+- `atomscript_static`：静的ライブラリ（テスト・C++ から静的にリンクする用）
 - `atomscript`：共有ライブラリ（Windows・macOS・Android・Linux）
 - `atomscript_bundle`：macOS の Unity 用プラグイン `atomscript.bundle`（macOS のみ）
 - `atomscript_writer`：書き出しライブラリ

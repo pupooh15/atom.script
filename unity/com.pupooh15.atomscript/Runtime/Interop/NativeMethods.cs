@@ -82,9 +82,11 @@ namespace AtomScript.Interop
 
 	internal static class NativeMethods
 	{
-#if (UNITY_IOS || UNITY_SWITCH || UNITY_PS5 || UNITY_GAMECORE) && !UNITY_EDITOR
-		const string Lib = "__Internal";		// 静的リンク
+#if (UNITY_ANDROID || UNITY_IOS || UNITY_SWITCH || UNITY_PS5 || UNITY_GAMECORE) && !UNITY_EDITOR
+		// IL2CPP の機種：コアのソース（Plugins/IL2CPP）がゲームと一緒にコンパイルされ、同じバイナリに入る
+		const string Lib = "__Internal";
 #else
+		// エディタ・デスクトップ：ビルド済みのネイティブプラグイン（atomscript.dll / atomscript.bundle）
 		const string Lib = "atomscript";
 #endif
 		const CallingConvention CC = CallingConvention.Cdecl;

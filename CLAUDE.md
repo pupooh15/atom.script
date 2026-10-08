@@ -37,6 +37,8 @@ LT（DS、2007年）のスクリプトマネージャ（`E:\usr\app\ds\LT\prog\s
 | エディタからの atsc gen（2026-10-07） | マニフェスト（include 先含む）・atsc が変わったら自動で C# を作り直す（Project Settings でオフにできる）。手動は Assets → AtomScript → C# を生成、Project Settings の「今すぐ生成」。出力先の既定は `Assets/AtomScript/Generated/{Project}.g.cs`、名前空間の既定は project の PascalCase。中身が同じなら書き換えない。生成物はバージョン管理に入れる想定 |
 | macOS の Unity エディタ（2026-10-07） | Apple Silicon 版だけ対応すればよい（Intel 版エディタは確認しない）。プラグインと atsc はユニバーサルのまま（Intel の Mac で動くプレイヤーのため） |
 | macOS の署名・公証（2026-10-07） | 後回し。今はリンカーの ad-hoc 署名のみ。配布方法（仕様書 §14 の未決事項）が決まったら判断する。git（clone・UPM の git URL）で配るなら不要。ビルド済みバイナリを zip / tarball でダウンロードさせるなら必要（quarantine 属性が付き、Gatekeeper が bundle の読み込みと atsc の起動を止める。回避は `xattr -dr com.apple.quarantine`）。出荷するゲームはゲーム開発者が .app ごと署名・公証し直すので関係しない。必要になったら会社の Apple Developer Program（Developer ID 証明書）と codesign / notarytool の手順を足す |
+| ネイティブの配り方（2026-10-08） | エディタ・デスクトップ（Windows / macOS）はビルド済みバイナリ（A）。Android・iOS・家庭用機は**コアのソースをパッケージに置き、ゲームのビルド時に IL2CPP がコンパイル**（B。機種ごとのバイナリを作らない。家庭用機の SDK ビルド環境を持たずに済む）。Mono での開発はしない（Android の Mono は armeabi-v7a のみで、arm64 は IL2CPP 専用） |
+| ATS_API の既定（2026-10-08） | 何も定義しなければ静的リンク扱い（IL2CPP のソースプラグインと UE は define を渡せないため）。共有ライブラリを作るときは `ATS_BUILD_DLL`、Windows で DLL を使う C/C++ 側は任意で `ATS_USE_DLL`。`ATS_STATIC` は付けても同じ |
 | cancel コールバック | `ats_cancel_fn( vm, token, user )`。トークンは VM ごとに振られるため VM も渡す（2026-10-07 に変更） |
 
 ## リポジトリの構成
@@ -56,7 +58,9 @@ unity/com.pupooh15.atomscript/   Unity パッケージ（パッケージ名は�
                                  （tools/cmake/embed_csharp_bytes.cmake。Resources に置くと利用者のゲームに入ってしまうため）
                                  Runtime/Plugins/ と Editor/Tools~/ はビルドで作る（コミットしない）。Windows は Plugins/Windows/x86_64/atomscript.dll と Tools~/win-x64/atsc.exe、
                                  macOS は Plugins/macOS/atomscript.bundle と Tools~/osx/atsc（どちらもユニバーサル）、
-                                 Android は Plugins/Android/arm64-v8a/libatomscript.so（atsc は無い。エディタは Windows / macOS）
+                                 IL2CPP の機種は Plugins/IL2CPP/AtomScript/ にコアのソース（ホストのビルドで src・include から tools/cmake/copy_il2cpp_source.cmake でコピー）。
+                                 IL2CPP はプラグインのソースを 1 つのフォルダーに平らにコピーしてコンパイルするので、サブフォルダーを作らず、
+                                 #include "atomscript/xxx.h" を "xxx.h" に書き換えてある。.meta は「全プラットフォーム、ただしエディタ・Windows・macOS・Linux・WebGL を除く」
 unity/plugin-meta/               プラグインの .meta の正本（GUID とプラットフォーム設定）。CMake がバイナリと一緒にパッケージへコピーする。
                                  パッケージ内に置くと、バイナリの無いプラットフォームで Unity が持ち主のいない .meta を消すため外に出した（2026-10-07）
                                  テスト用の .ats・マニフェストは Data~ に置く（~ 付きは Unity が読み込まない。パッケージ内の .ats がインポーターにかからないように）
@@ -99,21 +103,20 @@ echo y | npx vsce package                  # LICENSE が無いので確認に y 
 - PATH に cmake は無い。上のフルパスを使う。コンソール出力は cp932 なので、MSVC のメッセージを読むときは `iconv -f cp932 -t utf-8`。
 - 警告ゼロを維持する（/W4）。MSVC の printf 系に日本語リテラルを渡すと C4819 が出るので、書式なしなら `fputs` を使う。
 
-## ビルドとテスト（Android、Windows 上でクロスビルド）
+## Android（IL2CPP でソースからビルド）
+
+- Unity のプレイヤーではコアをソースから IL2CPP がコンパイルするので、Android 用の .so は作らない。C# は `__Internal` から呼ぶ（`NativeMethods.Lib`）。
+- 2026-10-08 に確認：Unity 6000.0.67f1 で AtomScript を呼ぶシーンを IL2CPP / ARM64 の APK にビルドでき、コアは libil2cpp.so に入る（libatomscript.so は無い）。
+  確認は短いパスの一時プロジェクトで `-executeMethod` から BuildPipeline.BuildPlayer。IL2CPP のコンパイルで警告なし。
+  **実機では未確認**（端末が無い。エミュレーターのイメージも入っていない）。端末をつないだら `-testPlatform Android` で Tests/Runtime の 2 件を動かす。
+- コアが NDK でコンパイルできるかだけを見るなら、CMake でクロスビルドもできる（Unity には入れない）：
 
 ```bash
 A="C:/Program Files/Unity/Hub/Editor/6000.0.67f1/Editor/Data/PlaybackEngines/AndroidPlayer"   # NDK r27c と CMake 3.22.1・Ninja が入っている
 C="$A/SDK/cmake/3.22.1/bin"
 "$C/cmake.exe" -S . -B build-android -G Ninja -DCMAKE_MAKE_PROGRAM="$C/ninja.exe"     -DCMAKE_TOOLCHAIN_FILE="$A/NDK/build/cmake/android.toolchain.cmake"     -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-23 -DANDROID_STL=c++_static -DCMAKE_BUILD_TYPE=Release
-"$C/cmake.exe" --build build-android      # パッケージの Runtime/Plugins/Android/arm64-v8a に libatomscript.so と .meta がコピーされる
+"$C/cmake.exe" --build build-android      # クロスビルドでは ATS_BUILD_TOOLS が既定で OFF（atsc・テストは作らない）
 ```
-
-- クロスビルドでは `ATS_BUILD_TOOLS` が既定で OFF（atsc・テスト・Unity のテスト用アセットは作らない）。
-- `.so` は 16KB ページ対応（`-Wl,-z,max-page-size=16384`。Google Play が Android 15 以降向けに必須）。依存は libc / libm / libdl だけ（`c++_static`、コアは STL を使わない）。
-  公開シンボルは `ats_*` だけ。NDK が `-g` を付けるので .so は約 470KB あるが、APK に入るときに Gradle がデバッグ情報を落とす（64KB）。
-- 2026-10-07 に確認：警告ゼロ、`llvm-readelf` で AArch64・LOAD の境界 0x4000・依存を確認。
-  Unity 6000.0.67f1 で AtomScript を呼ぶシーンを IL2CPP / ARM64 の APK にビルドでき、`lib/arm64-v8a/libatomscript.so` が入ることを確認（短いパスの一時プロジェクト、`-executeMethod` で BuildPipeline）。
-  **実機では未確認**（端末が無い。エミュレーターのイメージも入っていない）。端末をつないだら `-testPlatform Android` で Tests/Runtime の 2 件を動かす。
 
 ## ビルドとテスト（macOS）
 
@@ -155,7 +158,7 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
 | 段階1：コンパイラ・CLI | 完了（push 済み） |
 | 段階1：`atsc gen`（C++ / HTML / C#） | 完了 |
 | 段階2：VS Code 拡張 | 完了（push 済み、テスト 58 件）。デバッガ（DAP）は VM 側のデバッグサーバーと一緒に作る |
-| 段階2：Unity 統合 | C# ラッパーと PlayerLoop 更新、ScriptedImporter、エディタからの atsc gen は実装済み（Windows x64。EditMode テスト 28 件成功、ラッパーは IL2CPP プレイヤーでも確認）。macOS 用の atsc とプラグイン（.bundle、ユニバーサル）も実装済み（EditMode テスト 28 件成功。macOS プレイヤーは arm64 / x64 × Mono / IL2CPP で確認）。Android（arm64-v8a）のプラグインも実装済み（APK のビルドまで確認、実機は未確認）。iOS / 家庭用機のプラグイン、デバッガ接続は未着手 |
+| 段階2：Unity 統合 | C# ラッパーと PlayerLoop 更新、ScriptedImporter、エディタからの atsc gen は実装済み（Windows x64。EditMode テスト 28 件成功、ラッパーは IL2CPP プレイヤーでも確認）。macOS 用の atsc とプラグイン（.bundle、ユニバーサル）も実装済み（EditMode テスト 28 件成功。macOS プレイヤーは arm64 / x64 × Mono / IL2CPP で確認）。Android・iOS・家庭用機は IL2CPP でコアをソースからビルドする方式にした（Android は APK のビルドまで確認、実機は未確認。iOS は未確認）。デバッガ接続は未着手 |
 | 段階2：UE 統合 | 未着手 |
 | 段階3：家庭用機・モバイル対応、ノードエディタ | 未着手 |
 
@@ -193,7 +196,7 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
 
 - Unity パッケージの続き：`.ats` のアイコン、
   macOS の配布用の署名・公証（後回しと決定済み。上の表を参照）、
-  Android の実機確認（端末が要る）、iOS / 家庭用機のプラグイン（プレイヤー用テストは Tests/Runtime にある）。
+  Android の実機確認（端末が要る）、iOS の確認（Unity で Xcode プロジェクトを書き出し、Mac でビルド）、家庭用機での確認（プレイヤー用テストは Tests/Runtime にある）。
   インポートは 1 ファイル 0.5〜0.8 秒（atsc の起動込み）。数が増えて遅ければ、まとめてコンパイルする方法を考える
 - `gen` の改善候補：`Commands` をカテゴリごとに分割できるようにする、UE 向け（UObject / Blueprint）の生成
 - `atsc fmt` / `strings` / `refs`

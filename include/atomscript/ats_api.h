@@ -18,16 +18,19 @@ extern "C" {
 /*=========================================================================*/
 /* エクスポート */
 /*=========================================================================*/
-#if defined(ATS_STATIC)
-	#define ATS_API
-#elif defined(_WIN32)
-	#if defined(ATS_BUILD_DLL)
+/*	何も定義しなければ静的リンク（ソースを直接組み込む場合も含む。Unity の IL2CPP のソースプラグイン、UE は
+	コンパイルオプションを渡せないので、既定をこちらにしている）。
+	ATS_BUILD_DLL：共有ライブラリを作るとき。ATS_USE_DLL：Windows で DLL を使う C/C++ 側（任意。無くても動く） */
+#if defined(ATS_BUILD_DLL)
+	#if defined(_WIN32)
 		#define ATS_API __declspec(dllexport)
 	#else
-		#define ATS_API __declspec(dllimport)
+		#define ATS_API __attribute__((visibility("default")))
 	#endif
+#elif defined(ATS_USE_DLL) && defined(_WIN32)
+	#define ATS_API __declspec(dllimport)
 #else
-	#define ATS_API __attribute__((visibility("default")))
+	#define ATS_API
 #endif
 
 #if defined(_WIN32)

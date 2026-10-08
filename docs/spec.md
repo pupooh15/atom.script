@@ -1,6 +1,6 @@
 # AtomScript 仕様書（ドラフト）
 
-> この文書は Claude Docs の「AtomScript 仕様書（ドラフト）」から書き出したもの（2026-10-07 時点）。図は Mermaid で描き直している。
+> この文書は Claude Docs の「AtomScript 仕様書（ドラフト）」から書き出したもの（2026-10-08 時点）。図は Mermaid で描き直している。
 
 Oct 6, 2026 · @はぎはら
 
@@ -481,11 +481,11 @@ queries:
 
 ## 9. Unity 統合
 
-Unity では UPM パッケージ `com.<company>.atomscript` として配布する。対象は Unity 6 で、待機ありコマンドには Unity 6 標準の \`Awaitable\` を使う。中身は、プラットフォームごとにビルド済みのネイティブプラグインと、それを包む C# ラッパー。
+Unity では UPM パッケージ `com.<company>.atomscript` として配布する。対象は Unity 6 で、待機ありコマンドには Unity 6 標準の \`Awaitable\` を使う。中身は、ネイティブのコア（エディタ・デスクトップはビルド済みバイナリ、IL2CPP の機種はソース）と、それを包む C# ラッパー。
 
 ### 構成
 
-- `Runtime/Plugins/`：Windows `.dll`、macOS `.bundle`、Android `.so`（arm64-v8a）、iOS `.a`（`__Internal` でリンク）、家庭用機は各 SDK の静的ライブラリ。
+- `Runtime/Plugins/`：エディタ・デスクトップ用はビルド済みの Windows `.dll`、macOS `.bundle`（ユニバーサル）。Android・iOS・家庭用機用は **コアのソース**（`Plugins/IL2CPP/`）を置き、ゲームのビルド時に IL2CPP が一緒にコンパイルする（C# からは `__Internal` で呼ぶ）。機種ごとのバイナリは作らないので、家庭用機の SDK でのビルドはゲーム側の通常のビルドに含まれる。Mono には対応しない（2026-10-08 決定）。
 - `Runtime/Interop/`：P/Invoke 宣言。生ポインタは `SafeHandle` で包み、解放忘れを防ぐ。
 - `Runtime/`：`ScriptRuntime`、`ScriptVM`、`ScriptProgram` などの C# API。
 - `Editor/`：`.ats` の ScriptedImporter、マニフェストからのコード生成、デバッガ接続用のウィンドウ。
@@ -638,20 +638,20 @@ flowchart TB
 
 ## 12. 対応プラットフォームとビルド・配布
 
-「DLL」で配布できるのは PC と Android だけで、iOS と家庭用機は静的ライブラリが必要になる。そのため同じソースから CMake で動的・静的の両方を出力する。
+Unity では、エディタとデスクトップ（Windows・macOS）にはビルド済みの動的ライブラリを配り、IL2CPP でビルドする機種（Android・iOS・家庭用機）にはコアのソースを配って IL2CPP にコンパイルさせる（2026-10-08 決定）。UE はすべての機種でソースを UBT がビルドする。
 
 | プラットフォーム | Unity 向けの成果物 | UE 向け | 備考 |
 | --- | --- | --- | --- |
 | Windows x64 | `.dll` | ソース | ツールもこの環境で動かす |
 | macOS（arm64 / x64） | `.bundle` | ソース | エディタ利用のため |
-| Android（arm64-v8a） | `.so` | ソース | NDK でビルド |
-| iOS | `.a`（xcframework） | ソース | 動的ライブラリは使わない |
-| PlayStation 5 | 静的ライブラリ | ソース | SIE の SDK と開発契約が必要 |
-| Xbox Series X\|S | 静的ライブラリ | ソース | Microsoft GDK と開発契約が必要 |
-| Nintendo Switch | 静的ライブラリ | ソース | 任天堂の SDK と開発契約が必要 |
-| Nintendo Switch 2 | 静的ライブラリ | ソース | 任天堂の SDK と開発契約が必要 |
+| Android（arm64-v8a） | ソース（IL2CPP がビルド） | ソース | IL2CPP のみ（Mono は armeabi-v7a 専用のため対象外） |
+| iOS | ソース（IL2CPP がビルド） | ソース | Xcode でゲームと一緒にリンクされる |
+| PlayStation 5 | ソース（IL2CPP がビルド） | ソース | SIE の SDK と開発契約が必要 |
+| Xbox Series X\|S | ソース（IL2CPP がビルド） | ソース | Microsoft GDK と開発契約が必要 |
+| Nintendo Switch | ソース（IL2CPP がビルド） | ソース | 任天堂の SDK と開発契約が必要 |
+| Nintendo Switch 2 | ソース（IL2CPP がビルド） | ソース | 任天堂の SDK と開発契約が必要 |
 
-家庭用機4機種は各社の SDK を使うため、CI は契約した開発環境を入れた専用のビルドマシンで実行する。
+家庭用機4機種のコアは、各社の SDK と Unity の機種モジュールを持つゲーム側の通常のビルドでコンパイルされるので、AtomScript 側でバイナリを作って配る必要はない。動作確認には契約した開発環境が要る。
 
 ### コードの制約
 

@@ -248,21 +248,35 @@ if( EXISTS "${ATS_UNITY_PACKAGE}" )
 		)
 	endif()
 
-	# Android：libatomscript.so を ABI ごとのフォルダーにコピーする（.meta は ABI ごとに unity/plugin-meta に用意する）
-	if( ANDROID AND ATS_BUILD_SHARED )
-		set( ATS_ANDROID_META "${ATS_UNITY_PLUGIN_META}/Plugins/Android/${ANDROID_ABI}/libatomscript.so.meta" )
-		if( NOT EXISTS "${ATS_ANDROID_META}" )
-			message( FATAL_ERROR "${ANDROID_ABI} 用の .meta がありません: ${ATS_ANDROID_META}" )
-		endif()
-		add_custom_target( unity_plugin ALL
-			COMMAND ${CMAKE_COMMAND} -E make_directory "${ATS_UNITY_PLUGINS}/Android/${ANDROID_ABI}"
+	# IL2CPP の機種（Android・iOS・家庭用機）：コアのソースをパッケージに置き、ゲームのビルド時に IL2CPP がコンパイルする。
+	# 機種ごとのバイナリは作らない（エディタ・デスクトップは上のビルド済みバイナリ）。ホストのビルドならどの OS でもコピーする
+	if( NOT CMAKE_CROSSCOMPILING )
+		set( ATS_IL2CPP_DIR "${ATS_UNITY_PLUGINS}/IL2CPP/AtomScript" )
+		set( ATS_IL2CPP_META "${ATS_UNITY_PLUGIN_META}/Plugins/IL2CPP" )
+		# IL2CPP はソースを平らにコピーしてコンパイルするので、サブフォルダーを作らず 1 つのフォルダーに並べる
+		set( ATS_IL2CPP_COMMANDS
+			COMMAND ${CMAKE_COMMAND} -E make_directory "${ATS_IL2CPP_DIR}"
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins.meta" "${ATS_UNITY_PACKAGE}/Runtime/"
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins/Android.meta" "${ATS_UNITY_PLUGINS}/"
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins/Android/${ANDROID_ABI}.meta" "${ATS_UNITY_PLUGINS}/Android/"
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_ANDROID_META}" "${ATS_UNITY_PLUGINS}/Android/${ANDROID_ABI}/"
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:atomscript>" "${ATS_UNITY_PLUGINS}/Android/${ANDROID_ABI}/"
-			DEPENDS atomscript
-			COMMENT "libatomscript.so（${ANDROID_ABI}）を Unity パッケージにコピー"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins/IL2CPP.meta" "${ATS_UNITY_PLUGINS}/"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_IL2CPP_META}/AtomScript.meta" "${ATS_UNITY_PLUGINS}/IL2CPP/"
+		)
+		set( ATS_IL2CPP_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/copy_il2cpp_source.cmake" )
+		foreach( f src/ats_internal.h src/ats_runtime.cpp src/ats_program.cpp src/ats_vm.cpp src/ats_vars.cpp
+				   include/atomscript/ats_api.h include/atomscript/ats_format.h )
+			get_filename_component( name "${f}" NAME )
+			if( NOT EXISTS "${ATS_IL2CPP_META}/AtomScript/${name}.meta" )
+				message( FATAL_ERROR "IL2CPP 用の .meta がありません: unity/plugin-meta/Plugins/IL2CPP/AtomScript/${name}.meta" )
+			endif()
+			list( APPEND ATS_IL2CPP_COMMANDS
+				COMMAND ${CMAKE_COMMAND} -DINPUT=${CMAKE_CURRENT_SOURCE_DIR}/${f} -DOUTPUT=${ATS_IL2CPP_DIR}/${name}
+					-P "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/copy_il2cpp_source.cmake"
+				COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_IL2CPP_META}/AtomScript/${name}.meta" "${ATS_IL2CPP_DIR}/"
+			)
+			list( APPEND ATS_IL2CPP_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${f}" )
+		endforeach()
+		add_custom_target( unity_il2cpp_source ALL ${ATS_IL2CPP_COMMANDS}
+			DEPENDS ${ATS_IL2CPP_DEPENDS}
+			COMMENT "コアのソースを Unity パッケージ（IL2CPP 用）にコピー"
 		)
 	endif()
 endif()
