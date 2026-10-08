@@ -31,6 +31,7 @@ tests/                           テスト
 docs/spec.md                     仕様書
 docs/language.md                 言語・マニフェスト・atsc のリファレンス
 docs/bytecode.md                 バイナリ形式・命令・セーブ形式の詳細
+docs/unity-manual.md             Unity への組み込みマニュアル（初めて Unity を触る人向け）
 ```
 
 ## ビルド

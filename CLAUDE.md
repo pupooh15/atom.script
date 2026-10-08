@@ -14,6 +14,7 @@ LT（DS、2007年）のスクリプトマネージャ（`E:\usr\app\ds\LT\prog\s
     仕様書に図を足したら、スクリプトの `DIAGRAMS` に Mermaid 版を追加する。
 - 言語・マニフェスト・atsc のリファレンス：`docs/language.md`
 - バイナリ形式・命令・セーブ形式：`docs/bytecode.md`
+- Unity への組み込みマニュアル（非エンジニア向け）：`docs/unity-manual.md`。Unity パッケージの使い方を変えたら合わせて直す
 - GitHub：`git@github.com:pupooh15/atom.script.git`（main）
 
 ## ユーザーと決めたこと（変更するときは必ず確認する）
