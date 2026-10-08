@@ -55,7 +55,8 @@ unity/com.pupooh15.atomscript/   Unity パッケージ（パッケージ名は�
                                  プレイヤーはファイルを読めないので、SampleRpg の .atsb は Tests/Runtime/Generated/SampleRpgBytecode.g.cs に埋め込む
                                  （tools/cmake/embed_csharp_bytes.cmake。Resources に置くと利用者のゲームに入ってしまうため）
                                  Runtime/Plugins/ と Editor/Tools~/ はビルドで作る（コミットしない）。Windows は Plugins/Windows/x86_64/atomscript.dll と Tools~/win-x64/atsc.exe、
-                                 macOS は Plugins/macOS/atomscript.bundle と Tools~/osx/atsc（どちらもユニバーサル）
+                                 macOS は Plugins/macOS/atomscript.bundle と Tools~/osx/atsc（どちらもユニバーサル）、
+                                 Android は Plugins/Android/arm64-v8a/libatomscript.so（atsc は無い。エディタは Windows / macOS）
 unity/plugin-meta/               プラグインの .meta の正本（GUID とプラットフォーム設定）。CMake がバイナリと一緒にパッケージへコピーする。
                                  パッケージ内に置くと、バイナリの無いプラットフォームで Unity が持ち主のいない .meta を消すため外に出した（2026-10-07）
                                  テスト用の .ats・マニフェストは Data~ に置く（~ 付きは Unity が読み込まない。パッケージ内の .ats がインポーターにかからないように）
@@ -98,6 +99,22 @@ echo y | npx vsce package                  # LICENSE が無いので確認に y 
 - PATH に cmake は無い。上のフルパスを使う。コンソール出力は cp932 なので、MSVC のメッセージを読むときは `iconv -f cp932 -t utf-8`。
 - 警告ゼロを維持する（/W4）。MSVC の printf 系に日本語リテラルを渡すと C4819 が出るので、書式なしなら `fputs` を使う。
 
+## ビルドとテスト（Android、Windows 上でクロスビルド）
+
+```bash
+A="C:/Program Files/Unity/Hub/Editor/6000.0.67f1/Editor/Data/PlaybackEngines/AndroidPlayer"   # NDK r27c と CMake 3.22.1・Ninja が入っている
+C="$A/SDK/cmake/3.22.1/bin"
+"$C/cmake.exe" -S . -B build-android -G Ninja -DCMAKE_MAKE_PROGRAM="$C/ninja.exe"     -DCMAKE_TOOLCHAIN_FILE="$A/NDK/build/cmake/android.toolchain.cmake"     -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-23 -DANDROID_STL=c++_static -DCMAKE_BUILD_TYPE=Release
+"$C/cmake.exe" --build build-android      # パッケージの Runtime/Plugins/Android/arm64-v8a に libatomscript.so と .meta がコピーされる
+```
+
+- クロスビルドでは `ATS_BUILD_TOOLS` が既定で OFF（atsc・テスト・Unity のテスト用アセットは作らない）。
+- `.so` は 16KB ページ対応（`-Wl,-z,max-page-size=16384`。Google Play が Android 15 以降向けに必須）。依存は libc / libm / libdl だけ（`c++_static`、コアは STL を使わない）。
+  公開シンボルは `ats_*` だけ。NDK が `-g` を付けるので .so は約 470KB あるが、APK に入るときに Gradle がデバッグ情報を落とす（64KB）。
+- 2026-10-07 に確認：警告ゼロ、`llvm-readelf` で AArch64・LOAD の境界 0x4000・依存を確認。
+  Unity 6000.0.67f1 で AtomScript を呼ぶシーンを IL2CPP / ARM64 の APK にビルドでき、`lib/arm64-v8a/libatomscript.so` が入ることを確認（短いパスの一時プロジェクト、`-executeMethod` で BuildPipeline）。
+  **実機では未確認**（端末が無い。エミュレーターのイメージも入っていない）。端末をつないだら `-testPlatform Android` で Tests/Runtime の 2 件を動かす。
+
 ## ビルドとテスト（macOS）
 
 ```bash
@@ -138,7 +155,7 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
 | 段階1：コンパイラ・CLI | 完了（push 済み） |
 | 段階1：`atsc gen`（C++ / HTML / C#） | 完了 |
 | 段階2：VS Code 拡張 | 完了（push 済み、テスト 58 件）。デバッガ（DAP）は VM 側のデバッグサーバーと一緒に作る |
-| 段階2：Unity 統合 | C# ラッパーと PlayerLoop 更新、ScriptedImporter、エディタからの atsc gen は実装済み（Windows x64。EditMode テスト 28 件成功、ラッパーは IL2CPP プレイヤーでも確認）。macOS 用の atsc とプラグイン（.bundle、ユニバーサル）も実装済み（EditMode テスト 28 件成功。macOS プレイヤーは arm64 / x64 × Mono / IL2CPP で確認）。Android / iOS / 家庭用機のプラグイン、デバッガ接続は未着手 |
+| 段階2：Unity 統合 | C# ラッパーと PlayerLoop 更新、ScriptedImporter、エディタからの atsc gen は実装済み（Windows x64。EditMode テスト 28 件成功、ラッパーは IL2CPP プレイヤーでも確認）。macOS 用の atsc とプラグイン（.bundle、ユニバーサル）も実装済み（EditMode テスト 28 件成功。macOS プレイヤーは arm64 / x64 × Mono / IL2CPP で確認）。Android（arm64-v8a）のプラグインも実装済み（APK のビルドまで確認、実機は未確認）。iOS / 家庭用機のプラグイン、デバッガ接続は未着手 |
 | 段階2：UE 統合 | 未着手 |
 | 段階3：家庭用機・モバイル対応、ノードエディタ | 未着手 |
 
@@ -176,7 +193,7 @@ cmake --build build -j                    # arm64 + x86_64 のユニバーサル
 
 - Unity パッケージの続き：`.ats` のアイコン、
   macOS の配布用の署名・公証（後回しと決定済み。上の表を参照）、
-  Android / iOS / 家庭用機のプラグイン（プレイヤー用テストは Tests/Runtime にある）。
+  Android の実機確認（端末が要る）、iOS / 家庭用機のプラグイン（プレイヤー用テストは Tests/Runtime にある）。
   インポートは 1 ファイル 0.5〜0.8 秒（atsc の起動込み）。数が増えて遅ければ、まとめてコンパイルする方法を考える
 - `gen` の改善候補：`Commands` をカテゴリごとに分割できるようにする、UE 向け（UObject / Blueprint）の生成
 - `atsc fmt` / `strings` / `refs`

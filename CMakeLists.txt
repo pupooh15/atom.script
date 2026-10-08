@@ -19,6 +19,14 @@ option( ATS_BUILD_SHARED	"共有ライブラリ（DLL / .so / .dylib）を作る
 option( ATS_BUILD_TESTS		"テストを作る"									ON )
 option( ATS_ENABLE_DEBUG	"デバッグ用 API を含める（製品ビルドでは OFF）"	ON )
 
+# ツール（writer・コンパイラ・atsc・テスト）はホストで動くものなので、Android・iOS へのクロスビルドでは作らない
+if( CMAKE_CROSSCOMPILING )
+	set( ATS_BUILD_TOOLS_DEFAULT OFF )
+else()
+	set( ATS_BUILD_TOOLS_DEFAULT ON )
+endif()
+option( ATS_BUILD_TOOLS		"ツール（atsc）とテストを作る"					${ATS_BUILD_TOOLS_DEFAULT} )
+
 # MSVC の既定の /EHsc を外し、ターゲットごとに指定する
 if( MSVC )
 	string( REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}" )
@@ -60,6 +68,11 @@ if( ATS_BUILD_SHARED )
 	ats_core_options( atomscript )
 	target_compile_definitions( atomscript PRIVATE ATS_BUILD_DLL )
 
+	# Android：16KB ページの端末でも読めるようにする（Google Play が Android 15 以降向けに必須にしている）
+	if( ANDROID )
+		target_link_options( atomscript PRIVATE "-Wl,-z,max-page-size=16384" )
+	endif()
+
 	# macOS の Unity 用プラグイン（atomscript.bundle）。DllImport( "atomscript" ) で読まれる
 	if( APPLE AND NOT CMAKE_SYSTEM_NAME MATCHES "iOS" )
 		add_library( atomscript_bundle MODULE ${ATS_CORE_SOURCES} )
@@ -75,6 +88,8 @@ if( ATS_BUILD_SHARED )
 		)
 	endif()
 endif()
+
+if( ATS_BUILD_TOOLS )
 
 # .atsb の書き出し（コンパイラ・テスト用。STL を使う）
 add_library( atomscript_writer STATIC tools/writer/ats_writer.cpp tools/writer/ats_writer.h )
@@ -121,7 +136,9 @@ if( MSVC )
 	target_compile_options( atsc PRIVATE /W4 /utf-8 /EHsc )
 endif()
 
-if( ATS_BUILD_TESTS )
+endif()	# ATS_BUILD_TOOLS
+
+if( ATS_BUILD_TESTS AND ATS_BUILD_TOOLS )
 	enable_testing()
 
 	# サンプルのマニフェストから登録コードを生成し、テストでそのまま使う（atsc gen の検証）
@@ -164,6 +181,7 @@ if( EXISTS "${ATS_UNITY_PACKAGE}" )
 	set( ATS_UNITY_TESTS "${ATS_UNITY_PACKAGE}/Tests/Editor" )
 	set( ATS_UNITY_RUNTIME_TESTS "${ATS_UNITY_PACKAGE}/Tests/Runtime" )
 	set( ATS_UNITY_OUTPUTS )
+	if( ATS_BUILD_TOOLS )		# テスト用アセットは atsc で作る（クロスビルドでは作らない）
 	# ats_unity_asset( 名前 マニフェスト スクリプト 生成コードの置き場所 )
 	function( ats_unity_asset name manifest script gen_dir )
 		add_custom_command(
@@ -190,6 +208,7 @@ if( EXISTS "${ATS_UNITY_PACKAGE}" )
 	)
 	list( APPEND ATS_UNITY_OUTPUTS "${ATS_UNITY_RUNTIME_TESTS}/Generated/SampleRpgBytecode.g.cs" )
 	add_custom_target( unity_test_assets ALL DEPENDS ${ATS_UNITY_OUTPUTS} )
+	endif()	# ATS_BUILD_TOOLS
 
 	# プラグインの .meta（GUID とプラットフォーム設定）は unity/plugin-meta に置き、バイナリと一緒にコピーする。
 	# パッケージの Runtime/Plugins はビルドで作るもので、リポジトリには入れない
@@ -226,6 +245,24 @@ if( EXISTS "${ATS_UNITY_PACKAGE}" )
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:atsc>" "${ATS_UNITY_PACKAGE}/Editor/Tools~/osx/"
 			DEPENDS atomscript_bundle atsc
 			COMMENT "atomscript.bundle と atsc を Unity パッケージにコピー"
+		)
+	endif()
+
+	# Android：libatomscript.so を ABI ごとのフォルダーにコピーする（.meta は ABI ごとに unity/plugin-meta に用意する）
+	if( ANDROID AND ATS_BUILD_SHARED )
+		set( ATS_ANDROID_META "${ATS_UNITY_PLUGIN_META}/Plugins/Android/${ANDROID_ABI}/libatomscript.so.meta" )
+		if( NOT EXISTS "${ATS_ANDROID_META}" )
+			message( FATAL_ERROR "${ANDROID_ABI} 用の .meta がありません: ${ATS_ANDROID_META}" )
+		endif()
+		add_custom_target( unity_plugin ALL
+			COMMAND ${CMAKE_COMMAND} -E make_directory "${ATS_UNITY_PLUGINS}/Android/${ANDROID_ABI}"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins.meta" "${ATS_UNITY_PACKAGE}/Runtime/"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins/Android.meta" "${ATS_UNITY_PLUGINS}/"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_UNITY_PLUGIN_META}/Plugins/Android/${ANDROID_ABI}.meta" "${ATS_UNITY_PLUGINS}/Android/"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ATS_ANDROID_META}" "${ATS_UNITY_PLUGINS}/Android/${ANDROID_ABI}/"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:atomscript>" "${ATS_UNITY_PLUGINS}/Android/${ANDROID_ABI}/"
+			DEPENDS atomscript
+			COMMENT "libatomscript.so（${ANDROID_ABI}）を Unity パッケージにコピー"
 		)
 	endif()
 endif()

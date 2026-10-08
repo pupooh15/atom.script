@@ -12,7 +12,7 @@ LT（DS）のスクリプトマネージャを参考に新規設計したもの�
 | 書き出しライブラリ（`tools/writer`） | 実装済み |
 | コンパイラ `atsc`（`.ats` → `.atsb`） | 実装済み（[docs/language.md](docs/language.md)）。`gen` は C++・C#（Unity）・HTML に対応。`fmt` / `strings` / `refs` は未実装 |
 | VS Code 拡張（`editors/vscode`） | 実装済み。構文ハイライト・スニペット・言語サーバー（`atsc lsp`）によるエラー表示・補完・ホバー・定義へ移動・引数ヒント・アウトライン |
-| Unity パッケージ（`unity/com.pupooh15.atomscript`） | C# ラッパー（P/Invoke・SafeHandle・`Awaitable`）、PlayerLoop での更新、`.ats` の ScriptedImporter、エディタからの C# 生成を実装済み。Windows x64・macOS（ユニバーサル） |
+| Unity パッケージ（`unity/com.pupooh15.atomscript`） | C# ラッパー（P/Invoke・SafeHandle・`Awaitable`）、PlayerLoop での更新、`.ats` の ScriptedImporter、エディタからの C# 生成を実装済み。Windows x64・macOS（ユニバーサル）・Android（arm64-v8a） |
 | UE 統合、デバッガ | 未着手 |
 
 ## ディレクトリ
@@ -47,11 +47,20 @@ build/Release/atomscript_tests.exe
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 build/atomscript_tests
+
+# Android（arm64-v8a、API 23 以上）。NDK と CMake・Ninja は Unity の Android モジュールに入っているものを使える
+#   NDK   = <Unity>/Editor/Data/PlaybackEngines/AndroidPlayer/NDK
+#   CMAKE = <Unity>/Editor/Data/PlaybackEngines/AndroidPlayer/SDK/cmake/3.22.1/bin
+"$CMAKE/cmake" -S . -B build-android -G Ninja -DCMAKE_MAKE_PROGRAM="$CMAKE/ninja"     -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake"     -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-23 -DANDROID_STL=c++_static -DCMAKE_BUILD_TYPE=Release
+"$CMAKE/cmake" --build build-android
 ```
+
+クロスビルド（Android・iOS）では、コアのライブラリだけを作る（atsc とテストはホスト用なので作らない。`ATS_BUILD_TOOLS`）。
 
 ビルドすると Unity パッケージにエディタ用のネイティブプラグインと atsc がコピーされる
 （Windows：`Runtime/Plugins/Windows/x86_64/atomscript.dll`・`Editor/Tools~/win-x64/atsc.exe`、
-macOS：`Runtime/Plugins/macOS/atomscript.bundle`・`Editor/Tools~/osx/atsc`）。
+macOS：`Runtime/Plugins/macOS/atomscript.bundle`・`Editor/Tools~/osx/atsc`、
+Android：`Runtime/Plugins/Android/arm64-v8a/libatomscript.so`）。
 プラグインの `.meta` は `unity/plugin-meta` からコピーする。
 
 | オプション | 既定 | 内容 |
@@ -59,6 +68,7 @@ macOS：`Runtime/Plugins/macOS/atomscript.bundle`・`Editor/Tools~/osx/atsc`）�
 | `ATS_BUILD_SHARED` | ON | 共有ライブラリ `atomscript`（.dll / .so / .dylib）を作る |
 | `ATS_BUILD_TESTS` | ON | テストを作る |
 | `ATS_ENABLE_DEBUG` | ON | デバッグ用 API を含める。製品ビルドでは OFF |
+| `ATS_BUILD_TOOLS` | ON（クロスビルドでは OFF） | writer・コンパイラ・atsc を作る。OFF ならテストも作らない |
 
 成果物：
 
